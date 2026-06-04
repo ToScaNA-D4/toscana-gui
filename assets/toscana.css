@@ -1,0 +1,913 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+html, body, .bk-root, .bk, .pn-wrapper, .pn-loading {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, .markdown, .bk-btn, .bk-input {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.bk-btn {
+  min-height: 56px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.toscana-toast-stack {
+  position: fixed;
+  right: 24px;
+  top: 24px;
+  width: min(360px, calc(100vw - 48px));
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toscana-toast {
+  width: 100%;
+  color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+.toscana-toast--success { background: rgba(21, 84, 63, 0.96); }
+.toscana-toast--info { background: rgba(11, 111, 164, 0.96); }
+.toscana-toast--warning { background: rgba(161, 98, 7, 0.96); }
+.toscana-toast--error { background: rgba(153, 27, 27, 0.96); }
+
+.toscana-toast__row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 12px 10px 14px;
+}
+
+.toscana-toast__body {
+  flex: 1 1 auto;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.toscana-toast__close.bk-btn {
+  min-height: 32px;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border: 1px solid rgba(255,255,255,0.22);
+}
+
+.toscana-toast__close.bk-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.toscana-toast__bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  transform-origin: left center;
+  animation: toscana-toast-progress 8s linear forwards;
+}
+
+.toscana-toast--persistent .toscana-toast__bar {
+  display: none;
+}
+
+@keyframes toscana-toast-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.toscana-hovercard {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toscana-hovercard__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  background: rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.10);
+  cursor: default;
+  user-select: none;
+}
+
+.toscana-hovercard__panel {
+  position: absolute;
+  top: 42px;
+  width: min(520px, calc(100vw - 120px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(0,0,0,0.10);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.14);
+  color: rgba(0,0,0,0.86);
+  display: none;
+  z-index: 1001;
+}
+
+.toscana-hovercard__panel,
+.toscana-hovercard__panel * {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bk-root,
+.bk-root .bk,
+.bk-root .bk-card,
+.bk-root .bk-card-body {
+  overflow: visible;
+}
+
+.toscana-hovercard--open-right .toscana-hovercard__panel {
+  left: 0;
+  right: auto;
+}
+
+.toscana-hovercard--open-left .toscana-hovercard__panel {
+  right: 0;
+  left: auto;
+}
+
+.toscana-hovercard:hover .toscana-hovercard__panel {
+  display: block;
+}
+
+.toscana-hovercard__panel code {
+  overflow-wrap: anywhere;
+}
+
+bk-tooltip,
+.bk-tooltip {
+  width: min(320px, calc(100vw - 160px)) !important;
+  max-width: min(320px, calc(100vw - 160px)) !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+bk-tooltip *,
+.bk-tooltip * {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+bk-tooltip code,
+.bk-tooltip code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.toscana-overflow-visible {
+  overflow: visible !important;
+}
+
+.toscana-overflow-visible > div {
+  overflow: visible !important;
+}
+
+.toscana-overflow-visible .bk-card,
+.toscana-overflow-visible .bk-card-body {
+  overflow: visible !important;
+}
+
+.toscana-normalization-fit-panels {
+  width: 100%;
+  align-items: stretch;
+  gap: 20px;
+}
+
+.toscana-normalization-top-panels {
+  width: 100%;
+  align-items: stretch;
+}
+
+.toscana-normalization-source-header {
+  width: 100%;
+  align-items: stretch;
+}
+
+.toscana-normalization-fit-workspace-intro .bk-card {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(241, 245, 249, 0.92));
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+}
+
+.toscana-normalization-fit-workspace-intro .bk-card-body {
+  padding: 16px 18px;
+}
+
+.toscana-normalization-fit-workspace-copy {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: rgba(30, 41, 59, 0.92);
+}
+
+.toscana-normalization-fit-steps {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toscana-normalization-fit-step {
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(51, 65, 85, 0.92);
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.toscana-normalization-card .bk-card,
+.toscana-normalization-fit-panels .bk-card {
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+}
+
+.toscana-normalization-card--source-group .bk-card-header {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  min-height: 52px;
+}
+
+.toscana-normalization-card .bk-card-body,
+.toscana-normalization-fit-panels .bk-card-body {
+  padding: 18px 20px;
+}
+
+.toscana-normalization-source-card-header {
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.toscana-normalization-source-card-header--mode {
+  justify-content: space-between;
+}
+
+.toscana-normalization-source-label {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--neutral-foreground-rest, rgba(15, 23, 42, 0.82));
+}
+
+.toscana-normalization-source-label--center {
+  width: 100%;
+  text-align: center;
+}
+
+.toscana-normalization-field-label {
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--neutral-foreground-rest, rgba(15, 23, 42, 0.82));
+  margin-bottom: 6px;
+}
+
+/* Normalization: add breathing room between Select labels and inputs. */
+.toscana-normalization-qdat-select label,
+.toscana-normalization-qdat-select .bk-input-group label {
+  margin-bottom: 8px;
+}
+
+.toscana-normalization-qdat-input label,
+.toscana-normalization-qdat-input .bk-input-group label {
+  margin-bottom: 8px;
+}
+
+.toscana-normalization-source-state-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+
+.toscana-normalization-source-state-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  align-items: center;
+  margin-top: 7px;
+}
+
+.toscana-normalization-vanadium-fit-card .bk-card-body {
+  padding: 0;
+}
+
+.toscana-normalization-guide-tooltip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+
+.toscana-normalization-guide-tooltip svg,
+.toscana-normalization-guide-tooltip button,
+.toscana-normalization-guide-tooltip .bk-btn {
+  color: rgb(220, 38, 38) !important;
+  fill: rgb(220, 38, 38) !important;
+}
+
+.toscana-normalization-source-state {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--neutral-stroke-rest, rgba(148, 163, 184, 0.22));
+  transition: opacity 160ms ease, transform 160ms ease, border-color 160ms ease;
+}
+
+.toscana-normalization-source-state--context,
+.toscana-normalization-source-state--override {
+  background: var(--neutral-fill-rest, rgba(148, 163, 184, 0.18));
+  color: var(--neutral-foreground-rest, rgba(51, 65, 85, 0.88));
+}
+
+.toscana-normalization-source-state--context.toscana-normalization-source-state--active {
+  background: rgba(37, 99, 235, 0.10);
+  color: rgb(29, 78, 216);
+}
+
+.toscana-normalization-source-state--override.toscana-normalization-source-state--active {
+  background: rgba(217, 119, 6, 0.14);
+  color: rgb(180, 83, 9);
+}
+
+.toscana-normalization-source-state--active {
+  opacity: 1;
+  border-color: rgba(15, 23, 42, 0.08);
+  transform: none;
+}
+
+.toscana-normalization-source-state--inactive {
+  opacity: 0.85;
+}
+
+.toscana-normalization-context-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.toscana-normalization-context-summary__status {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Hide the "Ready" / "Warnings" pill; keep warnings list below when present. */
+.toscana-normalization-context-summary__status {
+  display: none;
+}
+
+.toscana-normalization-context-summary__status--ready {
+  background: rgba(22, 163, 74, 0.10);
+  color: rgb(21, 128, 61);
+}
+
+.toscana-normalization-context-summary__status--warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: rgb(180, 83, 9);
+}
+
+.toscana-normalization-context-summary__title {
+  display: none;
+}
+
+.toscana-normalization-context-summary__meta {
+  display: none;
+}
+
+.toscana-normalization-context-summary__dot {
+  color: rgba(148, 163, 184, 0.9);
+  padding: 0 6px;
+}
+
+.toscana-normalization-fit-data-workspace {
+  align-items: stretch;
+  gap: 14px;
+}
+
+.toscana-normalization-plot-stage {
+  gap: 10px;
+}
+
+.toscana-normalization-axis-controls {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.9);
+  padding: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.toscana-normalization-axis-controls--vertical {
+  justify-content: flex-start;
+}
+
+.toscana-normalization-axis-controls--horizontal {
+  padding-top: 6px;
+}
+
+.toscana-vertical-slider .bk-input-group {
+  height: 340px;
+}
+
+.toscana-vertical-slider .noUi-target.noUi-vertical {
+  height: 340px;
+  direction: rtl;
+}
+
+.toscana-normalization-axis-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(71, 85, 105, 0.86);
+}
+
+.toscana-normalization-input-tray .bk-card {
+  border-radius: 14px;
+  box-shadow: none;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(248, 250, 252, 0.58);
+}
+
+.toscana-normalization-input-tray .bk-card-body {
+  padding: 12px 14px;
+}
+
+.toscana-normalization-fit-panel .bk-card-body {
+  gap: 14px;
+}
+
+.toscana-normalization-fit-data-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toscana-normalization-fit-data-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  color: rgba(51, 65, 85, 0.92);
+}
+
+.toscana-normalization-fit-data-chip--band {
+  background: rgba(37, 99, 235, 0.10);
+  color: rgb(29, 78, 216);
+}
+
+.toscana-normalization-fit-data-chip--manual {
+  background: rgba(245, 158, 11, 0.14);
+  color: rgb(180, 83, 9);
+}
+
+.toscana-normalization-fit-data-chip--slider {
+  background: rgba(14, 116, 144, 0.12);
+  color: rgb(14, 116, 144);
+}
+
+.toscana-normalization-fit-data-chip--input {
+  background: rgba(100, 116, 139, 0.12);
+  color: rgb(71, 85, 105);
+}
+
+/* Normalization: redesign window table (Select Fitting Data header area). */
+.toscana-fit-window-table-host {
+  width: 100%;
+}
+
+.toscana-fit-window-table {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.toscana-fit-window-table__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toscana-fit-window-table__label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(71, 85, 105, 0.86);
+}
+
+.toscana-fit-window-table__value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.92);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.toscana-fit-window-table__value--warning {
+  color: rgb(180, 83, 9);
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(180, 83, 9, 0.18);
+  border-radius: 10px;
+  padding: 2px 8px;
+  width: fit-content;
+}
+
+/* Normalization: fit-result table next to the vanadium self-fit preview plot. */
+.toscana-fit-result-table__title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.toscana-fit-result-table__meta {
+  font-size: 0.82rem;
+  color: rgba(51, 65, 85, 0.9);
+}
+
+.toscana-fit-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.toscana-fit-result-table th,
+.toscana-fit-result-table td {
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+
+.toscana-fit-result-table th {
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.9);
+  background: rgba(241, 245, 249, 0.7);
+}
+
+.toscana-fit-result-table__param {
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.9);
+  width: 28%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.toscana-fit-result-table__value,
+.toscana-fit-result-table__err {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  width: 36%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+.toscana-normalization-fit-panel-lead {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(15, 23, 42, 0.94);
+}
+
+.toscana-normalization-fit-panel-copy {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(71, 85, 105, 0.92);
+}
+
+.toscana-normalization-fit-core-sections {
+  width: 100%;
+  align-items: stretch;
+}
+
+.toscana-normalization-fit-setup-card .bk-card,
+.toscana-normalization-fit-workspace-card .bk-card,
+.toscana-normalization-fit-feedback-card .bk-card,
+.toscana-normalization-fit-section-card .bk-card,
+.toscana-normalization-fit-output-card .bk-card,
+.toscana-normalization-fit-bounds-card .bk-card {
+  border-radius: 16px;
+  box-shadow: none;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.toscana-normalization-fit-setup-card .bk-card-body,
+.toscana-normalization-fit-workspace-card .bk-card-body,
+.toscana-normalization-fit-feedback-card .bk-card-body,
+.toscana-normalization-fit-section-card .bk-card-body,
+.toscana-normalization-fit-output-card .bk-card-body,
+.toscana-normalization-fit-bounds-card .bk-card-body {
+  padding: 12px 14px;
+}
+
+/* Normalization: section cards are content-only; hide the Card header bar. */
+.toscana-normalization-fit-section-card .bk-card-header,
+.toscana-normalization-fit-bounds-card .bk-card-header {
+  display: none !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+}
+
+.toscana-normalization-fit-setup-card .bk-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toscana-normalization-fit-feedback-card .bk-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toscana-normalization-fit-section-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(51, 65, 85, 0.88);
+}
+
+.toscana-normalization-fit-param-row {
+  align-items: center;
+  gap: 12px;
+}
+
+.toscana-normalization-fit-param-row > :first-child {
+  flex: 1 1 180px;
+}
+
+.toscana-normalization-fit-param-row > :last-child {
+  flex: 1 1 130px;
+}
+
+.toscana-normalization-fit-param-label {
+  align-items: center;
+  gap: 8px;
+}
+
+/* Normalization: visually align label + tooltip icon with input vertical center (do not alter inputs). */
+/* (Removed) Label positioning is handled via Panel margins to avoid transform conflicts. */
+
+/* Normalization: tighter param rows for the side column layout. */
+.toscana-fit-params-sidecolumn .toscana-normalization-fit-param-row {
+  gap: 8px;
+}
+
+.toscana-fit-params-sidecolumn .toscana-normalization-fit-param-row > :first-child {
+  flex: 1 1 160px;
+}
+
+.toscana-fit-params-sidecolumn .toscana-normalization-fit-param-row > :last-child {
+  flex: 0 0 96px;
+}
+
+.toscana-fit-params-sidecolumn .toscana-normalization-fit-bounds-grid {
+  column-gap: 8px;
+}
+
+.toscana-fit-params-sidecolumn .bk-input-group {
+  height: auto;
+  overflow: visible;
+}
+
+.toscana-fit-params-sidecolumn .bk-input {
+  line-height: 1.1;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+
+/* Normalization: keep the Fix checkbox vertically centered next to A. */
+.toscana-fit-fix-toggle {
+  display: flex;
+  align-items: center;
+  height: 32px;
+}
+
+.toscana-fit-fix-toggle .bk-checkbox {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.toscana-fit-fix-toggle .bk-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  line-height: 1;
+}
+
+/* (Reserved) Numeric input tweaks live in widget-specific stylesheets. */
+
+.toscana-normalization-fit-action-row {
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toscana-normalization-fit-bounds-grid {
+  column-gap: 12px;
+  row-gap: 8px;
+}
+
+.toscana-normalization-fit-bounds-grid--horizontal {
+  column-gap: 8px;
+}
+
+.toscana-export-prompt-card .bk-card-body {
+  padding-bottom: 18px;
+}
+
+.toscana-export-prompt-card .alert,
+.toscana-export-prompt-card .alert *,
+.toscana-export-prompt-card .bk-card-body,
+.toscana-export-prompt-card .bk-card-body * {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.toscana-export-prompt-card .alert code,
+.toscana-export-prompt-card .markdown code,
+.toscana-export-prompt-card .bk-card-body code {
+  display: inline;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
+  white-space: pre-wrap !important;
+}
+
+.toscana-export-prompt-card pre,
+.toscana-export-prompt-card pre code {
+  white-space: pre-wrap;
+}
+
+.toscana-export-prompt-card code {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* Normalization: custom suggest button color. */
+.toscana-btn-suggest button,
+.toscana-btn-suggest .bk-btn,
+.toscana-btn-suggest .bk-btn.bk-btn-light,
+.toscana-btn-suggest .bk-btn.bk-btn-default {
+  background: #5a5daa !important;
+  border-color: #5a5daa !important;
+  color: #ffffff !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+
+.toscana-btn-suggest button:disabled,
+.toscana-btn-suggest .bk-btn:disabled,
+.toscana-btn-suggest .bk-btn.bk-btn-light:disabled,
+.toscana-btn-suggest .bk-btn.bk-btn-default:disabled {
+  background: #5a5daa !important;
+  border-color: #5a5daa !important;
+  color: #ffffff !important;
+  opacity: 0.55;
+}
+
+.toscana-btn-suggest button:hover,
+.toscana-btn-suggest .bk-btn:hover,
+.toscana-btn-suggest .bk-btn.bk-btn-light:hover,
+.toscana-btn-suggest .bk-btn.bk-btn-default:hover {
+  filter: brightness(1.04);
+}
+
+.toscana-btn-suggest button:focus,
+.toscana-btn-suggest .bk-btn:focus,
+.toscana-btn-suggest .bk-btn:active,
+.toscana-btn-suggest .bk-btn.bk-btn-light:focus,
+.toscana-btn-suggest .bk-btn.bk-btn-light:active {
+  background: #5a5daa !important;
+  border-color: #5a5daa !important;
+}
+
+.toscana-normalization-fit-panel--data .bk-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+}
+
+.toscana-normalization-fit-panel--params .bk-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(249, 250, 251, 0.95));
+}
+
+.toscana-normalization-fit-panel--data .bk-clearfix,
+.toscana-normalization-fit-panel--params .bk-clearfix {
+  width: 100%;
+}
+
+@media (min-width: 1101px) {
+  .toscana-normalization-fit-panel--data .bk-card {
+    min-height: 980px;
+  }
+
+  .toscana-normalization-fit-panel--params .bk-card {
+    min-height: 980px;
+  }
+
+  .toscana-normalization-fit-workspace-card .bk-card-body {
+    padding: 12px 12px 14px 12px;
+  }
+
+  .toscana-normalization-fit-feedback-card .bk-card {
+    margin-top: 2px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .toscana-normalization-source-card-header {
+    flex-wrap: wrap;
+  }
+
+  .toscana-normalization-source-card-header--mode {
+    justify-content: flex-start;
+  }
+
+  .toscana-normalization-source-state-list {
+    flex-wrap: wrap;
+  }
+
+  .toscana-normalization-fit-data-workspace {
+    flex-wrap: wrap;
+  }
+
+  .toscana-normalization-axis-controls--vertical {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .toscana-normalization-fit-panels {
+    gap: 16px;
+  }
+}
