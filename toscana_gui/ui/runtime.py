@@ -245,9 +245,18 @@ def refresh_interaction_states(shell) -> None:
     shell.background_import_confirm_button.disabled = disabled
     shell.background_import_cancel_button.disabled = disabled
     shell.background_export_folder_input.disabled = disabled
-    export_ready = shell._background_export_is_ready() if hasattr(shell, "_background_export_is_ready") else False
-    shell.background_export_button.disabled = disabled or not export_ready
-    shell.background_export_confirm_button.disabled = disabled
+
+    ## logic change for background tab 
+
+    is_background_tab = getattr(shell, "current_top_level_tab", None) == "background"
+
+    if hasattr(shell, "background_export_button"):
+        if is_background_tab and hasattr(shell, "_background_export_is_ready"):
+            export_ready = shell._background_export_is_ready()
+        else:
+            export_ready = False
+        shell.background_export_button.disabled = disabled or not export_ready
+
     shell.background_export_cancel_button.disabled = disabled
     shell.manual_project_file_mode.disabled = disabled
     manual_picker_mode = shell.manual_project_file_mode.value == "Choose file"
@@ -304,7 +313,7 @@ def refresh_interaction_states(shell) -> None:
         if hasattr(shell, "_sync_normalization_fit_params_export_prompt_visibility"):
             shell._sync_normalization_fit_params_export_prompt_visibility()
 
-    if hasattr(shell, "_refresh_background_export_hovercard"):
+    if is_background_tab and hasattr(shell, "_refresh_background_export_hovercard"):
         shell._refresh_background_export_hovercard()
     if hasattr(shell, "_sync_background_export_prompt_visibility"):
         shell._sync_background_export_prompt_visibility()
@@ -345,7 +354,7 @@ def show_workspace_blocked_message(shell) -> None:
     shell.workspace_message.alert_type = "warning"
     shell.workspace_message.visible = True
     if shell.current_screen == "workspace":
-        shell._render_current_screen()
+        shell._refresh_interaction_states()
 
 
 def clear_workspace_message(shell) -> None:
@@ -363,15 +372,18 @@ def show_toast(
     if persistent is None:
         persistent = level == "error"
 
-    duration_ms = 0 if persistent else int(getattr(shell, "toast_duration_ms", 8000))
+    if persistent:
+        duration_ms = 0
+    elif level == "success":
+        duration_ms = int(getattr(shell, "toast_success_duration_ms", 5000))
+    elif level == "info":
+        duration_ms = int(getattr(shell, "toast_info_duration_ms", 6000))
+    else:
+        duration_ms = int(getattr(shell, "toast_duration_ms", 8000))
+        
     area = pn.state.notifications
     if area is None:
         return
-    try:
-        area.max_notifications = 2
-        area.position = "top-right"
-    except Exception:
-        pass
     if level == "success":
         area.success(message, duration=duration_ms)
     elif level == "warning":

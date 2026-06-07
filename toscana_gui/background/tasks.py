@@ -8,8 +8,8 @@ from os import chdir, getcwd
 from pathlib import Path
 from typing import Any, Literal
 
-from toscana.io.running_params import getRunningParams
-from toscana.experiment.measurement import Measurement
+from ntsa.io.running_params import getRunningParams
+from ntsa.experiment.measurement import Measurement
 
 BackgroundSourceMode = Literal["Select File", "Write Path"]
 BACKGROUND_SOURCE_OPTIONS: tuple[BackgroundSourceMode, BackgroundSourceMode] = (

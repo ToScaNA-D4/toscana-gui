@@ -6,6 +6,7 @@ from toscana_gui.projects.tasks import WORKSPACE_TAB_TITLES
 from toscana_gui.ui.screens.help import build_help_section
 from toscana_gui.ui.screens.background import build_background_section
 from toscana_gui.ui.screens.numors import build_numors_section
+from toscana_gui.ui.screens.numors import prepare_numors_section
 from toscana_gui.ui.screens.normalization import build_normalization_section
 from toscana_gui.ui.screens.self_scattering import build_self_scattering_section
 from toscana_gui.ui.screens.ft import build_ft_section
@@ -86,7 +87,7 @@ def build_continue_project_layout(shell) -> list[object]:
         level="info",
         message=(
             "Continue a previous session by choosing a recent project or opening an "
-            "`toscana-project.json` file directly."
+            "`ntsa-project.json` file directly."
         ),
         persistent=False,
     )
@@ -165,24 +166,86 @@ def build_continue_project_layout(shell) -> list[object]:
 
 
 def build_loaded_project_layout(shell) -> list[object]:
-    contents: list[object] = [build_workspace_navigation(shell)]
-    if shell.reset_project_prompt.visible:
-        contents.append(
-            pn.Card(
-                shell.reset_project_prompt,
-                pn.Row(
-                    shell.reset_project_confirm_button,
-                    shell.reset_project_cancel_button,
-                    sizing_mode="stretch_width",
-                ),
-                title="Reset Project",
+    return [_ensure_loaded_workspace_layout(shell)]
+
+def _ensure_loaded_workspace_layout(shell) -> pn.Column:
+    project_token = _workspace_project_token(shell)
+    if getattr(shell, "_workspace_loaded_project_token", None) != project_token:
+        shell._workspace_section_views = {}
+        shell._workspace_loaded_layout = None
+        shell._workspace_loaded_project_token = project_token
+    
+    layout = getattr(shell, "_workspace_loaded_layout", None)
+    if layout is None:
+        shell._workspace_reset_prompt_card = pn.Card(
+            shell.reset_project_prompt,
+            pn.Row(
+                shell.reset_project_confirm_button,
+                shell.reset_project_cancel_button,
                 sizing_mode="stretch_width",
-            )
+            ),
+            title="Reset Project",
+            sizing_mode="stretch_width",
+            visible=False,
         )
-    if shell.workspace_message.visible:
-        contents.append(shell.workspace_message)
-    contents.append(build_workspace_section_content(shell, shell.current_top_level_tab))
-    return contents
+        shell._workspace_section_stack = pn.Column(sizing_mode="stretch_width")
+        shell._workspace_loaded_layout = pn.Column(
+            build_workspace_navigation(shell),
+            shell._workspace_reset_prompt_card,
+            shell.workspace_message,
+            shell._workspace_section_stack,
+            sizing_mode="stretch_width",
+        )
+        layout = shell._workspace_loaded_layout
+
+    _refresh_loaded_workspace_layout(shell)
+    return layout
+
+def _refresh_loaded_workspace_layout(shell) -> None:
+    # Sync the reset prompt card visibility in-place
+    if hasattr(shell, "_workspace_reset_prompt_card"):
+        shell._workspace_reset_prompt_card.visible = bool(
+            shell.reset_project_prompt.visible
+        )
+
+    active_tab = shell.current_top_level_tab
+    section_views = getattr(shell, "_workspace_section_views", {})
+
+    current_view = section_views.get(active_tab)
+    if current_view is None:
+        # First visit to this tab — build and cache it
+        prepare_workspace_section_content(shell, active_tab)
+        current_view = pn.Column(sizing_mode="stretch_width")
+        current_view[:] = [build_workspace_section_content(shell, active_tab)]
+        section_views[active_tab] = current_view
+        shell._workspace_section_views = section_views
+    else:
+        # Revisit — only run prepare (which hits the fast path in prepare_background_section
+        # and equivalent functions, updating mutable state without rebuilding layout)
+        prepare_workspace_section_content(shell, active_tab)
+
+    # Show only the active tab's view, hide all others
+    stack = getattr(shell, "_workspace_section_stack", None)
+    if stack is None:
+        return
+
+    ordered_views = []
+    for tab_name in shell.workspace_buttons:
+        view = section_views.get(tab_name)
+        if view is None:
+            continue
+        view.visible = (tab_name == active_tab)
+        ordered_views.append(view)
+    stack[:] = ordered_views
+
+def _workspace_project_token(shell) -> str:
+    project_file = getattr(shell, "current_project_file", None)
+    project_root = getattr(shell, "current_project_root", None)
+    if project_file is not None:
+        return str(project_file)
+    if project_root is not None:
+        return str(project_root)
+    return ""
 
 
 def build_workspace_navigation(shell) -> pn.FlexBox:
@@ -195,6 +258,12 @@ def build_workspace_navigation(shell) -> pn.FlexBox:
         margin=(0, 0, 0, 0),
     )
 
+def prepare_workspace_section_content(shell, tab_name: str) -> None:
+    if tab_name == "numors":
+        prepare_numors_section(shell)
+    if tab_name == "background":
+        from toscana_gui.ui.screens.background import prepare_background_section
+        prepare_background_section(shell)
 
 def build_workspace_section_content(shell, tab_name: str) -> object:
     if tab_name == "project":

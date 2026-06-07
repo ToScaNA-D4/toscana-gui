@@ -149,17 +149,23 @@ class NumorsControllerMixin:
         self.numors_run_button.disabled = not validation_state.get("is_valid", False)
 
         if validation_state.get("is_valid"):
-            self.numors_message.object = "Selected `.par` file is ready to run."
+            self.numors_message.object = "Selected .par file is ready to run."
             self.numors_message.alert_type = "success"
+            self.numors_message.visible = False
+            self._show_success_toast("Selected .par file is ready to run")
         elif selected_par_path:
             self.numors_message.object = (
                 validation_state.get("error")
-                or "The remembered `.par` selection needs validation."
+                or "The remembered .par selection needs validation."
             )
             self.numors_message.alert_type = "warning"
+            self.numors_message.visible = False
+            self._show_warning_toast(self.numors_message.object)
         else:
-            self.numors_message.object = "Choose a `.par` file and validate it."
+            self.numors_message.object = "Choose a .par file and validate it."
             self.numors_message.alert_type = "secondary"
+            self.numors_message.visible = False
+            self._show_info_toast(self.numors_message.object)
 
         self._refresh_numors_run_blocks_view()
 
@@ -192,8 +198,9 @@ class NumorsControllerMixin:
         state = self._get_numors_state()
         state["source_mode"] = event.new
         self._persist_numors_state(state)
-        self.numors_message.object = "Input mode changed. Choose a `.par` file."
+        self.numors_message.object = "Input mode changed. Choose a .par file."
         self.numors_message.alert_type = "secondary"
+        self.numors_message.visible = False
         self.numors_run_button.disabled = True
         self._set_numors_source_widget_visibility()
         self._sync_numors_import_visibility()
@@ -210,6 +217,8 @@ class NumorsControllerMixin:
         self._set_numors_selected_path(selected_path)
         self.numors_message.object = "Selected file changed. Validate it to continue."
         self.numors_message.alert_type = "secondary"
+        self.numors_message.visible = False
+        self._show_info_toast(self.numors_message.object)
         self._sync_numors_import_visibility()
         self._refresh_interaction_states()
 
@@ -225,8 +234,10 @@ class NumorsControllerMixin:
         if current_value:
             self.numors_message.object = "Path changed. Validate it to continue."
             self.numors_message.alert_type = "secondary"
+            self.numors_message.visible = False
+            self._show_info_toast(self.numors_message.object)
         else:
-            self.numors_message.object = "Choose a `.par` file and validate it."
+            self.numors_message.object = "Choose a .par file and validate it."
             self.numors_message.alert_type = "secondary"
         self._sync_numors_import_visibility()
         self._refresh_interaction_states()
@@ -240,21 +251,23 @@ class NumorsControllerMixin:
 
         candidate_path = self._get_numors_candidate_path()
         if candidate_path is None:
-            self.numors_message.object = "Select a `.par` file path first."
+            self.numors_message.object = "Select a .par file path first."
             self.numors_message.alert_type = "danger"
-            self._render_current_screen()
+            self.numors_message.visible = False
+            self._show_error_toast(self.numors_message.object)
+            # self._render_current_screen()
             return
 
         self.numors_manual_path_input.value = str(candidate_path)
         self._set_numors_selected_path(str(candidate_path))
         if not is_par_file_within_project(candidate_path, self.current_project_root):
             self._prompt_numors_import(candidate_path)
-            self._render_current_screen()
+            # self._render_current_screen()
             return
 
         self._clear_numors_import_prompt()
         self._apply_numors_validation(candidate_path)
-        self._render_current_screen()
+        # self._render_current_screen()
 
     def _get_numors_candidate_path(self) -> Path | None:
         if self.numors_source_mode.value == "Select File":
@@ -271,13 +284,15 @@ class NumorsControllerMixin:
     def _prompt_numors_import(self, candidate_path: Path) -> None:
         self._pending_numors_import_path = candidate_path.resolve(strict=False)
         self.numors_import_prompt.object = (
-            "The selected `.par` file is outside the current project. "
+            "The selected .par file is outside the current project. "
             "Copy it into `processed/parfiles/` to continue."
         )
         self.numors_import_prompt.alert_type = "warning"
         self.numors_import_prompt.visible = True
-        self.numors_message.object = "Copy the selected `.par` file into the project to validate it."
+        self.numors_message.object = "Copy the selected .par file into the project to validate it."
         self.numors_message.alert_type = "warning"
+        self.numors_message.visible = False
+        self._show_warning_toast("Copy the selected .par file into the project to validate it.")
         self.numors_run_button.disabled = True
         self._sync_numors_import_visibility()
 
@@ -293,10 +308,12 @@ class NumorsControllerMixin:
         target_path = target_dir / source_path.name
         if target_path.exists():
             self.numors_message.object = (
-                "A `.par` file with the same name already exists in `processed/parfiles/`. "
+                "A .par file with the same name already exists in `processed/parfiles/`. "
                 "Rename the source file manually and try again."
             )
             self.numors_message.alert_type = "danger"
+            self.numors_message.visible = False
+            self._show_error_toast(self.numors_message.object)
             self.numors_import_prompt.alert_type = "danger"
             self.numors_import_prompt.object = (
                 "Import blocked because a file with the same name already exists."
@@ -327,6 +344,7 @@ class NumorsControllerMixin:
         self._clear_numors_import_prompt()
         self.numors_message.object = "Import cancelled."
         self.numors_message.alert_type = "secondary"
+        self.numors_message.visible = False
         self._sync_numors_import_visibility()
         self._refresh_interaction_states()
 
@@ -349,12 +367,16 @@ class NumorsControllerMixin:
         self.numors_run_button.disabled = not validation_result.is_valid
 
         if validation_result.is_valid:
-            self.numors_message.object = "Selected `.par` file is ready to run."
+            self.numors_message.object = "Selected .par file is ready to run."
             self.numors_message.alert_type = "success"
+            self.numors_message.visible = False
+            self._show_success_toast("Selected .par file is ready to run.")
             return
 
         self.numors_message.object = validation_result.error or "Validation failed."
         self.numors_message.alert_type = "danger"
+        self.numors_message.visible = False
+        self._show_error_toast(self.numors_message.object)
 
     def _notify_numors_execution_pending(self, _event=None) -> None:
         if self.operation_in_progress:
@@ -371,9 +393,11 @@ class NumorsControllerMixin:
         validation_state = self._get_numors_state()["validation"]
         selected_par_path = validation_state.get("selected_par_path")
         if not validation_state.get("is_valid") or not selected_par_path:
-            self.numors_message.object = "Validate a `.par` file before running d4creg."
+            self.numors_message.object = "Validate a .par file before running d4creg."
             self.numors_message.alert_type = "danger"
-            self._render_current_screen()
+            self.numors_message.visible = False
+            self._show_error_toast(self.numors_message.object)
+            # self._render_current_screen()
             return
 
         run_id = self._create_run_id()
@@ -399,6 +423,8 @@ class NumorsControllerMixin:
         self._clear_workspace_message()
         self.numors_message.object = "Running d4creg. Workspace interactions are blocked until it finishes."
         self.numors_message.alert_type = "warning"
+        self.numors_message.visible = False
+        self._show_warning_toast(self.numors_message.object)
         self._begin_workspace_loading("Running d4creg...")
 
         par_file = Path(selected_par_path)
@@ -436,7 +462,7 @@ class NumorsControllerMixin:
             return
 
         self._start_numors_run_poll()
-        self._render_current_screen()
+        self._refresh_interaction_states()
 
     def _start_numors_run_poll(self) -> None:
         if self._numors_run_poll is not None:
@@ -534,7 +560,7 @@ class NumorsControllerMixin:
         self.operation_in_progress = False
         try:
             if self.current_project_state is None or self._numors_active_run_id is None:
-                self._render_current_screen()
+                self._refresh_interaction_states()
                 return
 
             run_record = next(
@@ -564,24 +590,31 @@ class NumorsControllerMixin:
             if result is None:
                 self.numors_message.object = "Numors execution finished without a result payload."
                 self.numors_message.alert_type = "danger"
-                self._render_current_screen()
+                self.numors_message.visible = False
+                self._show_error_toast(self.numors_message.object) 
+                self._refresh_interaction_states()
+                self._refresh_numors_run_blocks_view()
                 return
 
             if result.status == "succeeded":
                 self.numors_message.object = "d4creg finished successfully."
                 self.numors_message.alert_type = "success"
+                self.numors_message.visible = False
                 self._show_success_toast("d4creg finished successfully.")
             else:
                 self.numors_message.object = (
                     f"d4creg finished with errors. Partial outputs were preserved. {result.error}"
                 )
                 self.numors_message.alert_type = "danger"
+                self.numors_message.visible = False
+                self._show_error_toast(self.numors_message.object)
 
             state = self._get_numors_state()
             state["selected_run_block_index"] = 0
             state["selected_run_block_plot_index"] = 0
             self._persist_numors_state(state)
-            self._render_current_screen()
+            self._refresh_interaction_states()
+            self._refresh_numors_run_blocks_view(latest_record=run_record)
         finally:
             self._end_workspace_loading(defer=True)
 

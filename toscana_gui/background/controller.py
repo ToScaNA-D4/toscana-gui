@@ -36,17 +36,18 @@ from toscana_gui.background.plots import (
     build_vanadium_subtraction_figure,
 )
 from toscana_gui.background.tasks import _working_directory
-from toscana.experiment.measurement import Measurement
-from toscana.math.fitting import fit_and_find_extremum, get_chi
-from toscana.io.saving import saveFile_xye
-from toscana.math.operations import binary_sum
-from toscana.math.signal_processing import smooth_curve
+from toscana_gui.ui.screens.background import refresh_background_section_state
+from ntsa.experiment.measurement import Measurement
+from ntsa.math.fitting import fit_and_find_extremum, get_chi
+from ntsa.io.saving import saveFile_xye
+from ntsa.math.operations import binary_sum
+from ntsa.math.signal_processing import smooth_curve
 
 BACKGROUND_SUBPROCESS_WORKER = REPO_ROOT / "background_subprocess_worker.py"
 
 
 class BackgroundControllerMixin:
-    _BACKGROUND_READY_TO_EXTRACT_MESSAGE = "Selected sample `.par` file is ready to extract."
+    _BACKGROUND_READY_TO_EXTRACT_MESSAGE = "Selected sample .par file is ready to extract."
     _BACKGROUND_EXPORT_NO_DATA_MESSAGE = "No data found to export. Run the background subtraction process."
 
     def _clear_background_cached_measurement_state(self) -> None:
@@ -55,6 +56,7 @@ class BackgroundControllerMixin:
         self._background_cached_artifact_mtime = None
         self._background_cached_par_filename = None
         self._background_cached_par_path = None
+        self._background_plot_signature_cache = None
 
     def _show_background_ready_to_extract_toast(self) -> None:
         # Success state should not linger as an inline alert (it reads like a stale banner).
@@ -64,12 +66,20 @@ class BackgroundControllerMixin:
             self.background_message.object = ""
             self.background_message.alert_type = "secondary"
 
-    def _set_background_message_inline(self, message: str, *, alert_type: str) -> None:
+    def _set_background_toast_notification(self, message: str, *, alert_type: str) -> None:
         if not hasattr(self, "background_message"):
             return
-        self.background_message.visible = True
         self.background_message.object = message
         self.background_message.alert_type = alert_type
+        self.background_message.visible = False
+
+        if alert_type == "danger":
+            self._show_error_toast(self.background_message.object)
+        elif alert_type == "success":
+            self._show_success_toast(self.background_message.object)
+        elif alert_type == "warning":
+            self._show_warning_toast(self.background_message.object)
+        # we don't show info toast here since it is redundant
 
     def _sync_background_export_prompt_visibility(self) -> None:
         if not hasattr(self, "background_export_prompt_card"):
@@ -202,7 +212,7 @@ class BackgroundControllerMixin:
         }
 
         measurement = None
-        # Deterministic behavior: tie export to the currently selected `.par` file cache entry.
+        # Deterministic behavior: tie export to the currently selected .par file cache entry.
         try:
             state = self._get_background_state()
             par_path_str = str(state.get("selected_par_path") or "").strip() or str(
@@ -234,7 +244,7 @@ class BackgroundControllerMixin:
             measurement = None
 
         if measurement is None:
-            snapshot["reason"] = "No extracted measurement artifact is available for the selected `.par` file."
+            snapshot["reason"] = "No extracted measurement artifact is available for the selected .par file."
             return snapshot
 
         arrays: dict[str, np.ndarray] = {}
@@ -471,6 +481,10 @@ class BackgroundControllerMixin:
             return
         sample_t = float(snap["sample_t"])
         vanadium_t = float(snap["vanadium_t"])
+        background_state = self._get_background_state()
+        par_path_str = str(background_state.get("selected_par_path") or "").strip() or str(
+            background_state.get("validation", {}).get("selected_par_path") or ""
+        ).strip()
 
         run_id = self._create_run_id()
         record = RunRecord(
@@ -525,20 +539,11 @@ class BackgroundControllerMixin:
             elif not write_zero_errors:
                 raise RuntimeError("Missing error columns for vanadium export.")
 
-            sample_heading = [
-                "Background subtracted diffractogram",
-                "Subtraction method: sample - (t*cell+(1-t)*env)",
-                f"t = {sample_t:.5f}",
-                " ",
-                " Q (1/Å)         Intensity              Error",
-            ]
-            van_heading = [
-                "Background subtracted diffractogram",
-                "Subtraction method: vanadium - (t*env)",
-                f"t = {vanadium_t:.5f}",
-                " ",
-                " Q (1/Å)         Intensity              Error",
-            ]
+            sample_heading, van_heading = self._background_export_headings(
+                par_path_str=par_path_str,
+                sample_t=sample_t,
+                vanadium_t=vanadium_t,
+            )
 
             saveFile_xye(str(sample_qdat), x, sample_y, sample_e, sample_heading)
             saveFile_xye(str(vanadium_qdat), vx, van_y, van_e, van_heading)
@@ -561,10 +566,6 @@ class BackgroundControllerMixin:
             }
 
             try:
-                background_state = self._get_background_state()
-                par_path_str = str(background_state.get("selected_par_path") or "").strip() or str(
-                    background_state.get("validation", {}).get("selected_par_path") or ""
-                ).strip()
                 sample_key = (
                     background_sample_key(Path(par_path_str), self.current_project_root)
                     if par_path_str and self.current_project_root is not None
@@ -720,6 +721,38 @@ class BackgroundControllerMixin:
             self._refresh_interaction_states()
             self._refresh_background_export_hovercard()
 
+    def _background_export_headings(
+        self,
+        *,
+        par_path_str: str,
+        sample_t: float,
+        vanadium_t: float,
+    ) -> tuple[list[str], list[str]]:
+        origin_path = Path(par_path_str).expanduser()
+        if not origin_path.is_absolute() and self.current_project_root is not None:
+            origin_path = (self.current_project_root / origin_path).resolve(strict=False)
+        else:
+            origin_path = origin_path.resolve(strict=False)
+        origin_line = f"Origin of data {origin_path}"
+
+        sample_heading = [
+            "Background subtracted diffractogram",
+            "Subtraction method: sample - (t*cell+(1-t)*env)",
+            origin_line,
+            f"t = {sample_t:.5f}",
+            " ",
+            " Q (1/Å)         Intensity              Error",
+        ]
+        van_heading = [
+            "Background subtracted diffractogram",
+            "Subtraction method: vanadium - (t*env)",
+            origin_line,
+            f"t = {vanadium_t:.5f}",
+            " ",
+            " Q (1/Å)         Intensity              Error",
+        ]
+        return sample_heading, van_heading
+
     def _clear_background_linear_and_vanadium_plot_cards(self) -> None:
         if hasattr(self, "background_linear_chi_plot_pane"):
             self.background_linear_chi_plot_pane.object = None
@@ -772,6 +805,46 @@ class BackgroundControllerMixin:
     def _sync_background_import_visibility(self) -> None:
         if hasattr(self, "background_import_card"):
             self.background_import_card.visible = bool(getattr(self.background_import_prompt, "visible", False))
+
+    def _sync_background_import_prompt_from_selection(self) -> None:
+        if not hasattr(self, "background_import_prompt"):
+            return
+        if self.current_project_state is None or self.current_project_root is None:
+            self._clear_background_import_prompt()
+            return
+
+        state = self._get_background_state()
+        selected = str(state.get("selected_par_path") or state.get("validation", {}).get("selected_par_path") or "").strip()
+        if not selected:
+            self._clear_background_import_prompt()
+            return
+
+        try:
+            selected_path = Path(selected).expanduser().resolve(strict=False)
+        except Exception:
+            self._clear_background_import_prompt()
+            return
+
+        if not selected_path.exists() or not selected_path.is_file():
+            self._clear_background_import_prompt()
+            return
+
+        if is_par_file_in_processed_parfiles(selected_path, self.current_project_root):
+            self._clear_background_import_prompt()
+            return
+
+        self._pending_background_import_path = selected_path
+        self.background_import_prompt.object = (
+            "The selected .par file is outside `processed/parfiles/`. "
+            "Copy it into `processed/parfiles/` to continue."
+        )
+        self.background_import_prompt.alert_type = "warning"
+        self.background_import_prompt.visible = True
+        self._sync_background_import_visibility()
+
+    def _refresh_background_selection_section_state(self) -> None:
+        refresh_background_section_state(self)
+        self._sync_background_import_prompt_from_selection()
 
     def _sync_background_linear_controls_from_cache(self, sample_key: str) -> None:
         if self.current_project_state is None:
@@ -977,7 +1050,7 @@ class BackgroundControllerMixin:
             par_path_str = str(state.get("validation", {}).get("selected_par_path") or "").strip()
         sample_key = background_sample_key(Path(par_path_str), self.current_project_root) if par_path_str else None
         if not sample_key:
-            self.background_vanadium_message.object = "Could not determine which sample `.par` this result belongs to."
+            self.background_vanadium_message.object = "Could not determine which sample .par this result belongs to."
             self.background_vanadium_message.alert_type = "danger"
             self._refresh_interaction_states()
             return
@@ -1019,6 +1092,7 @@ class BackgroundControllerMixin:
         self._refresh_interaction_states()
 
     def _run_vanadium_linear_combination(self, measurement, *, settings: dict) -> dict:
+
         vanadium = getattr(measurement, "norData", None)
         environment = getattr(measurement, "envData", None)
         if vanadium is None or environment is None:
@@ -1066,7 +1140,7 @@ class BackgroundControllerMixin:
 
         if not np.isfinite(best_t):
             best_t = float(trans_arr[int(np.argmin(np.asarray(chi_values, dtype=float)))])
-
+        
         return {
             "trans": [float(v) for v in trans_arr.tolist()],
             "chi": [float(v) for v in chi_values],
@@ -1106,7 +1180,7 @@ class BackgroundControllerMixin:
 
         sample_pars = list_sample_par_files(self.current_project_root)
         if not sample_pars:
-            self.background_par_dropdown.options = {"No sample `.par` files found in processed/parfiles/.": ""}
+            self.background_par_dropdown.options = {"No sample .par files found in processed/parfiles/.": ""}
             self.background_par_dropdown.value = ""
             return
 
@@ -1117,13 +1191,13 @@ class BackgroundControllerMixin:
         remembered = str(state.get("selected_par_path") or "").strip()
         if remembered and remembered in options.values():
             selected_value = remembered
+            self.background_par_dropdown.value = selected_value
+            self.background_manual_path_input.value = selected_value
         else:
-            selected_value = next(iter(options.values()))
-
-        self.background_par_dropdown.value = selected_value
-        self.background_manual_path_input.value = selected_value
-        if selected_value and selected_value != remembered:
-            self._set_background_selected_path(selected_value)
+            selected_value = next(iter(options.values()), "")
+            self.background_par_dropdown.value = selected_value if not remembered else ""
+            if not remembered:
+                self.background_manual_path_input.value = selected_value
 
     def _load_background_state_into_widgets(self) -> None:
         if self.current_project_state is None:
@@ -1182,20 +1256,22 @@ class BackgroundControllerMixin:
         state = self._get_background_state()
         validation_state = state["validation"]
         self.background_extract_button.disabled = not bool(validation_state.get("is_valid", False))
+        self._refresh_background_plots()
+        self._refresh_background_selection_section_state()
 
         if validation_state.get("is_valid"):
             self._show_background_ready_to_extract_toast()
         elif state.get("selected_par_path"):
-            self._set_background_message_inline(
+            self._set_background_toast_notification(
                 (
                 validation_state.get("error")
-                or "The remembered sample `.par` selection needs validation."
+                or "The remembered sample .par selection needs validation."
                 ),
                 alert_type="warning",
             )
         else:
-            self._set_background_message_inline(
-                "Select a sample `.par` file to get started.",
+            self._set_background_toast_notification(
+                "Select a sample .par file to get started.",
                 alert_type="secondary",
             )
 
@@ -1408,6 +1484,7 @@ class BackgroundControllerMixin:
         self._refresh_background_subtraction_sample_summary()
         self._apply_background_subtraction_vanadium_visibility()
         self._refresh_background_subtraction_vanadium_summary()
+        self._refresh_background_selection_section_state()
         self._refresh_interaction_states()
 
     def _on_background_vanadium_use_custom_t_click(self, _event=None) -> None:
@@ -1580,7 +1657,7 @@ class BackgroundControllerMixin:
         if signature is None:
             state["validation"]["file_accessible"] = False
             state["validation"]["is_valid"] = False
-            state["validation"]["error"] = "Sample `.par` file is missing."
+            state["validation"]["error"] = "Sample .par file is missing."
         else:
             state["validation"]["file_accessible"] = True
             state["validation"]["is_valid"] = True
@@ -1600,23 +1677,23 @@ class BackgroundControllerMixin:
 
         if update_message:
             if signature is None:
-                self._set_background_message_inline(
+                self._set_background_toast_notification(
                     (
-                        "Loaded cached extraction, but the sample `.par` file is missing. "
+                        "Loaded cached extraction, but the sample .par file is missing. "
                         "Re-extract is unavailable until the file is restored."
                     ),
                     alert_type="warning",
                 )
             elif stale:
-                self._set_background_message_inline(
+                self._set_background_toast_notification(
                     (
-                        "Loaded cached extraction. The `.par` file has changed since extraction; "
+                        "Loaded cached extraction. The .par file has changed since extraction; "
                         "re-extract is recommended."
                     ),
                     alert_type="warning",
                 )
             else:
-                self._set_background_message_inline(
+                self._set_background_toast_notification(
                     "Loaded cached extraction for this sample.",
                     alert_type="success",
                 )
@@ -1683,6 +1760,21 @@ class BackgroundControllerMixin:
         self._background_cached_par_filename = par_filename
         self._background_cached_par_path = par_path_str
         return measurement
+    
+    def _background_has_latest_measurement_artifact(self) -> bool:
+        state = self._get_background_state()
+        artifact = state.get("latest_measurement_artifact")
+
+        if not artifact:
+            return False
+        try:
+            path = Path(str(artifact)).expanduser()
+        except Exception:
+            return False
+        
+        if not path.is_absolute() and self.current_project_root is not None:
+            path = (self.current_project_root / path).resolve(strict=False)
+        return path.exists() and path.is_file()
 
     def _on_background_linear_settings_change(self, event) -> None:
         if getattr(self, "_suspend_background_events", False) or self.current_project_state is None:
@@ -1793,7 +1885,7 @@ class BackgroundControllerMixin:
             par_path_str = str(state.get("validation", {}).get("selected_par_path") or "").strip()
         sample_key = background_sample_key(Path(par_path_str), self.current_project_root) if par_path_str else None
         if not sample_key:
-            self.background_linear_message.object = "Could not determine which sample `.par` this result belongs to."
+            self.background_linear_message.object = "Could not determine which sample .par this result belongs to."
             self.background_linear_message.alert_type = "danger"
             self._refresh_interaction_states()
             return
@@ -1916,6 +2008,18 @@ class BackgroundControllerMixin:
             )
 
     def _refresh_background_plots(self) -> None:
+
+        signature = self._background_plot_signature()
+        if getattr(self, "_background_plot_signature_cache", None) == signature:
+            self._set_background_plot_visibility(
+                has_measurement=self.background_raw_plot_pane.object is not None, 
+                show_linear_combination=(
+                    self.background_subtraction_method.value == BACKGROUND_SUBTRACTION_METHOD_OPTIONS[0]
+                ),
+                raw_ok=self.background_raw_plot_pane.object is not None, 
+            )
+            return
+        
         if self.current_project_state is None:
             return
 
@@ -1981,11 +2085,31 @@ class BackgroundControllerMixin:
         self._apply_background_subtraction_vanadium_visibility()
         self._refresh_background_subtraction_vanadium_summary()
 
+        self._background_plot_signature_cache = signature
+    
+    def _background_plot_signature(self) -> tuple:
+        state = self._get_background_state()
+        sample_key = self._current_background_sample_key()
+        entry = {}
+        cached = state.get("measurements_by_par")
+        if sample_key and isinstance(cached, dict):
+            entry = cached.get(sample_key) or {}
+        
+        return (
+            state.get("latest_measurement_artifact"),
+            getattr(self, "_background_cached_artifact_mtime", None), 
+            self.background_subtraction_method.value, 
+            entry.get("sample_subtraction_view"),
+            entry.get("vanadium_subtraction_view"),
+            repr(entry.get("linear_combination")),
+            repr(entry.get("vanadium_linear_combination"))
+        )
+
     def _apply_background_subtraction_sample_visibility(self) -> None:
         if not hasattr(self, "background_subtraction_sample_card"):
             return
 
-        has_measurement = self._load_latest_measurement() is not None
+        has_measurement = self._background_has_latest_measurement_artifact()
         self.background_subtraction_sample_card.visible = bool(has_measurement)
         if not has_measurement:
             if hasattr(self, "background_subtraction_plot_pane"):
@@ -2141,7 +2265,7 @@ class BackgroundControllerMixin:
         if not hasattr(self, "background_subtraction_vanadium_card"):
             return
 
-        has_measurement = self._load_latest_measurement() is not None
+        has_measurement = self._background_has_latest_measurement_artifact()
         self.background_subtraction_vanadium_card.visible = bool(has_measurement)
         if not has_measurement:
             for widget_name in (
@@ -2397,7 +2521,10 @@ class BackgroundControllerMixin:
             if direct is not None:
                 direct_sub_y = direct[:, 1]
 
-        title = f"Linear Combination (t = {effective_t_val:.2f})"
+        sample_name = str(getattr(measurement, "Title", "") or "").strip() or str(
+            getattr(self, "_background_cached_par_filename", None) or "—"
+        )
+        title = f"Linear Combination for {sample_name} (t = {effective_t_val:.2f})"
         self.background_linear_subtraction_plot_pane.object = build_linear_combination_subtraction_figure(
             x=x,
             sample_y=sample_y,
@@ -2627,8 +2754,8 @@ class BackgroundControllerMixin:
         state = self._get_background_state()
         state["source_mode"] = event.new
         self._persist_background_state(state)
-        self._set_background_message_inline(
-            "Input mode changed. Choose a sample `.par` file.",
+        self._set_background_toast_notification(
+            "Input mode changed. Choose a sample .par file.",
             alert_type="secondary",
         )
         self.background_extract_button.disabled = True
@@ -2645,11 +2772,13 @@ class BackgroundControllerMixin:
         selected_path = str(event.new or "").strip()
         self.background_manual_path_input.value = selected_path
         self._set_background_selected_path(selected_path)
+        self._refresh_background_selection_section_state()
         if selected_path and self._apply_cached_background_measurement(Path(selected_path), update_message=True):
             return
         self._reset_background_t_controls_ui()
+        self._refresh_background_plots()
 
-        self._set_background_message_inline(
+        self._set_background_toast_notification(
             "Selection changed. Validate it to continue.",
             alert_type="secondary",
         )
@@ -2665,12 +2794,14 @@ class BackgroundControllerMixin:
         self._clear_background_import_prompt()
         selected_path = str(event.new or "").strip()
         self._set_background_selected_path(selected_path)
+        self._refresh_background_selection_section_state()
         if selected_path and self.current_project_root is not None:
             if self._apply_cached_background_measurement(Path(selected_path), update_message=True):
                 return
         self._reset_background_t_controls_ui()
+        self._refresh_background_plots()
 
-        self._set_background_message_inline(
+        self._set_background_toast_notification(
             "Path changed. Validate it to continue.",
             alert_type="secondary",
         )
@@ -2699,29 +2830,33 @@ class BackgroundControllerMixin:
 
         candidate_path = self._get_background_candidate_path()
         if candidate_path is None:
-            self._set_background_message_inline(
-                "Select a sample `.par` file path first.",
-                alert_type="danger",
-            )
+            self.background_message.object = "Select a .par file path first."
+            self.background_message.alert_type = "danger"
+            self.background_message.visible = False
+            self._show_error_toast("Select a .par file path first.")
             self._refresh_interaction_states()
-            self._render_current_screen()
+            # self._render_current_screen()
             return
 
         self.background_manual_path_input.value = str(candidate_path)
         self._set_background_selected_path(str(candidate_path))
+        self._refresh_background_selection_section_state()
+        self._refresh_background_plots()
 
         if not is_par_file_in_processed_parfiles(candidate_path, self.current_project_root):
             self._prompt_background_import(candidate_path)
             self._sync_background_import_visibility()
+            self._refresh_background_selection_section_state()
             self._refresh_interaction_states()
-            self._render_current_screen()
+            # self._render_current_screen()
             return
 
         self._clear_background_import_prompt()
         self._apply_background_validation(candidate_path)
         self._sync_background_import_visibility()
+        self._refresh_background_selection_section_state()
         self._refresh_interaction_states()
-        self._render_current_screen()
+        # self._render_current_screen()
 
     def _apply_background_validation(self, par_file: Path) -> None:
         validation_result = validate_background_par_file(par_file)
@@ -2729,13 +2864,14 @@ class BackgroundControllerMixin:
         state["selected_par_path"] = str(par_file.resolve(strict=False))
         state["validation"] = validation_result.to_state()
         self._persist_background_state(state)
+        self._refresh_background_selection_section_state()
 
         self.background_extract_button.disabled = not validation_result.is_valid
         if validation_result.is_valid:
             self._show_background_ready_to_extract_toast()
             return
 
-        self._set_background_message_inline(
+        self._set_background_toast_notification(
             validation_result.error or "Validation failed.",
             alert_type="danger",
         )
@@ -2743,14 +2879,14 @@ class BackgroundControllerMixin:
     def _prompt_background_import(self, candidate_path: Path) -> None:
         self._pending_background_import_path = candidate_path.resolve(strict=False)
         self.background_import_prompt.object = (
-            "The selected `.par` file is outside `processed/parfiles/`. "
+            "The selected .par file is outside `processed/parfiles/`. "
             "Copy it into `processed/parfiles/` to continue."
         )
         self.background_import_prompt.alert_type = "warning"
         self.background_import_prompt.visible = True
         self._sync_background_import_visibility()
-        self._set_background_message_inline(
-            "Copy the selected `.par` file into the project to validate it.",
+        self._set_background_toast_notification(
+            "Copy the selected .par file into the project to validate it.",
             alert_type="warning",
         )
         self.background_extract_button.disabled = True
@@ -2764,7 +2900,7 @@ class BackgroundControllerMixin:
 
     def _cancel_background_import(self, _event=None) -> None:
         self._clear_background_import_prompt()
-        self._set_background_message_inline("Import cancelled.", alert_type="secondary")
+        self._set_background_toast_notification("Import cancelled.", alert_type="secondary")
         self._refresh_interaction_states()
 
     def _copy_background_file_into_project(self, _event=None) -> None:
@@ -2779,9 +2915,9 @@ class BackgroundControllerMixin:
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / source_path.name
         if target_path.exists():
-            self._set_background_message_inline(
+            self._set_background_toast_notification(
                 (
-                    "A `.par` file with the same name already exists in `processed/parfiles/`. "
+                    "A .par file with the same name already exists in processed/parfiles/. "
                     "Rename the source file manually and try again."
                 ),
                 alert_type="danger",
@@ -2791,18 +2927,22 @@ class BackgroundControllerMixin:
                 "Import blocked because a file with the same name already exists."
             )
             self.background_import_prompt.visible = True
-            self._render_current_screen()
+            # self._render_current_screen()
             return
 
         from shutil import copy2
-
-        copy2(source_path, target_path)
-        self._clear_background_import_prompt()
-        self.background_manual_path_input.value = str(target_path)
-        self._set_background_selected_path(str(target_path))
-        self._refresh_background_par_dropdown_options()
-        self._apply_background_validation(target_path)
-        self._show_success_toast("Parameter file copied into the project.")
+        try:
+            copy2(source_path, target_path)
+            self._clear_background_import_prompt()
+            self.background_manual_path_input.value = str(target_path)
+            self._set_background_selected_path(str(target_path))
+            self._refresh_background_par_dropdown_options()
+            self._apply_background_validation(target_path)
+            self._refresh_background_selection_section_state()
+            self._show_success_toast("Parameter file copied into the project.")
+        except Exception as e:
+            self._clear_background_import_prompt()
+            self._show_error_toast(f"Could not copy file into project: {str(e)}")
 
     def _notify_background_extraction_pending(self, _event=None) -> None:
         if self.operation_in_progress:
@@ -2819,11 +2959,8 @@ class BackgroundControllerMixin:
         validation_state = self._get_background_state()["validation"]
         selected_par_path = validation_state.get("selected_par_path")
         if not validation_state.get("is_valid") or not selected_par_path:
-            self._set_background_message_inline(
-                "Validate a sample `.par` file before extracting.",
-                alert_type="danger",
-            )
-            self._render_current_screen()
+            self._show_error_toast("Validate a sample .par file before extracting.")
+            self._refresh_interaction_states()
             return
 
         run_id = self._create_run_id()
@@ -2847,7 +2984,7 @@ class BackgroundControllerMixin:
             self.current_project_root / "processed" / "logfiles" / f"{run_id}-background-result.json"
         )
         self._clear_workspace_message()
-        self._set_background_message_inline(
+        self._set_background_toast_notification(
             "Extracting sample measurement. Workspace interactions are blocked until it finishes.",
             alert_type="warning",
         )
@@ -2887,7 +3024,7 @@ class BackgroundControllerMixin:
             return
 
         self._start_background_run_poll()
-        self._render_current_screen()
+        self._refresh_interaction_states()
 
     def _start_background_run_poll(self) -> None:
         if self._background_run_poll is not None:
@@ -2979,7 +3116,7 @@ class BackgroundControllerMixin:
         self.operation_in_progress = False
         try:
             if self.current_project_state is None or self._background_active_run_id is None:
-                self._render_current_screen()
+                self._refresh_interaction_states()
                 return
 
             run_record = next(
@@ -3002,11 +3139,11 @@ class BackgroundControllerMixin:
 
             self._background_active_run_id = None
             if result is None:
-                self._set_background_message_inline(
+                self._set_background_toast_notification(
                     "Sample extraction finished without a result payload.",
                     alert_type="danger",
                 )
-                self._render_current_screen()
+                self._refresh_interaction_states()
                 return
 
             if result.status == "succeeded" and result.measurement_file:
@@ -3025,6 +3162,7 @@ class BackgroundControllerMixin:
                     artifact_for_state = str(artifact_path)
 
                 state["latest_measurement_artifact"] = artifact_for_state
+                self._background_plot_signature_cache = None
 
                 par_path_str = None
                 if run_record is not None:
@@ -3050,18 +3188,12 @@ class BackgroundControllerMixin:
 
                 self._persist_background_state(state)
                 self._refresh_background_plots()
-                self._set_background_message_inline(
-                    "Sample extraction finished successfully.",
-                    alert_type="success",
-                )
                 self._show_success_toast("Sample extraction finished successfully.")
-            else:
-                self._set_background_message_inline(
-                    f"Sample extraction finished with errors. {result.error}",
-                    alert_type="danger",
-                )
 
-            self._render_current_screen()
+            else:
+                self._show_error_toast(f"Sample extraction finished with errors. {result.error}")
+
+            self._refresh_interaction_states()
         finally:
             self._end_workspace_loading(defer=True)
 

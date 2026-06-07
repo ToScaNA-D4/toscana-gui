@@ -120,10 +120,6 @@ def refresh_numors_run_blocks_view(shell: Any, latest_record: Any = None) -> Non
     adat_file = block.get("adat_file")
     qdat_file = block.get("qdat_file")
 
-    if hasattr(shell, "numors_block_details"):
-        shell.numors_block_details.object = ""
-    if hasattr(shell, "numors_block_plot_counter"):
-        shell.numors_block_plot_counter.object = ""
     if hasattr(shell, "numors_block_info_hover"):
         shell.numors_block_info_hover.value = _build_block_info_tooltip_html(
             run_id=run_id,

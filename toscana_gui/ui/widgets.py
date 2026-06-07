@@ -17,6 +17,8 @@ from toscana_gui.ui.run_block_viewer import create_run_block_plot_display
 def initialize_shell_widgets(shell) -> None:
     shell.content = pn.Column(sizing_mode="stretch_both")
     shell.toast_duration_ms = 8000
+    shell.toast_success_duration_ms  = 5000
+    shell.toast_info_duration_ms = 6000
     shell.reset_project_button = pn.widgets.Button(
         name="🗑",
         button_type="light",
@@ -187,7 +189,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.manual_project_file_input = pn.widgets.TextInput(
         name="Project File",
-        placeholder=r"D:\ILL\ToScaNA\Projects\my-session\toscana-project.json",
+        placeholder=r"D:\ILL\ToScaNA\Projects\my-session\ntsa-project.json",
         sizing_mode="stretch_width",
     )
     shell.manual_project_file_mode = pn.widgets.RadioBoxGroup(
@@ -236,7 +238,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.manual_project_file_selector = pn.widgets.FileSelector(
         directory=str(REPO_ROOT),
-        file_pattern="toscana-project.json",
+        file_pattern="ntsa-project.json",
         only_files=True,
         size=8,
         sizing_mode="stretch_width",
@@ -249,7 +251,7 @@ def initialize_shell_widgets(shell) -> None:
         height=52,
     )
     shell.continue_project_message = pn.pane.Alert(
-        "Choose a recent project or open an `toscana-project.json` file manually.",
+        "Choose a recent project or open an `ntsa-project.json` file manually.",
         alert_type="secondary",
         sizing_mode="stretch_width",
     )
@@ -337,8 +339,6 @@ def initialize_shell_widgets(shell) -> None:
         width=140,
         height=40,
     )
-    shell.numors_run_blocks_run_id = pn.pane.Markdown("", sizing_mode="stretch_width")
-    shell.numors_block_header = pn.pane.Markdown("", sizing_mode="stretch_width")
     shell.numors_block_info_hover = pn.widgets.TooltipIcon(
         value="",
         sizing_mode="fixed",
@@ -347,8 +347,6 @@ def initialize_shell_widgets(shell) -> None:
         align="center",
         margin=(6, 0, 0, 0),
     )
-    shell.numors_block_details = pn.pane.Markdown("", sizing_mode="stretch_width")
-    shell.numors_block_plot_counter = pn.pane.Markdown("", sizing_mode="stretch_width")
     shell.numors_block_view_label = pn.pane.Markdown(
         "",
         sizing_mode="fixed",
@@ -464,10 +462,12 @@ def initialize_shell_widgets(shell) -> None:
     shell.numors_message = pn.pane.Alert(
         "Choose a `.par` file and validate it.",
         alert_type="secondary",
+        visible=False,
         sizing_mode="stretch_width",
     )
     shell.numors_validation_info_hover = pn.widgets.TooltipIcon(
         value="",
+        visible=False,
         sizing_mode="fixed",
         width=36,
         height=36,
@@ -545,12 +545,14 @@ def initialize_shell_widgets(shell) -> None:
         disabled=True,
     )
     shell.background_message = pn.pane.Alert(
-        "Select a sample `.par` file to get started.",
+        "Select a sample .par file to get started.",
         alert_type="secondary",
+        visible=False,
         sizing_mode="stretch_width",
     )
     shell.background_validation_info_hover = pn.widgets.TooltipIcon(
         value="",
+        visible=False,
         sizing_mode="fixed",
         width=36,
         height=36,
@@ -920,6 +922,7 @@ def initialize_shell_widgets(shell) -> None:
     shell.background_linear_message = pn.pane.Alert(
         "Compute a linear-combination background model to estimate the best t parameter.",
         alert_type="secondary",
+        visible=False,
         sizing_mode="stretch_width",
     )
     shell.background_vanadium_t_start = pn.widgets.FloatInput(
@@ -1111,6 +1114,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.background_vanadium_message = pn.pane.Alert(
         "Compute a vanadium background model to estimate the best t parameter.",
+        visible=False,
         alert_type="secondary",
         sizing_mode="stretch_width",
     )
@@ -2431,7 +2435,7 @@ def initialize_shell_widgets(shell) -> None:
 
     shell.normalization_fit_params_panel = pn.Card(
         pn.pane.Markdown(
-            "Define the fitting parameters and bounds for `toscana.models.scattering.vanaQdep`.",
+            "Define the fitting parameters and bounds for `ntsa.models.scattering.vanaQdep`.",
             sizing_mode="stretch_width",
             css_classes=["toscana-normalization-fit-panel-lead"],
         ),
@@ -5034,3 +5038,11 @@ def initialize_shell_widgets(shell) -> None:
         width=120,
         height=48,
     )
+
+    try:
+        area = pn.state.notifications
+        if area is not None:
+            area.max_notifications = 8
+            area.position = "top-right"
+    except Exception:
+        pass
