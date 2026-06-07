@@ -129,7 +129,7 @@ class ProjectSessionControllerMixin:
         self.reset_project_prompt.object = (
             "This will permanently delete generated files and reset the project state.\n\n"
             f"**Will delete:** {', '.join(targets)}\n\n"
-            "**Will keep:** project name, `rawdata/`, `ntsa-project.json` (reset to blank state), and `processed/parfiles/`.\n\n"
+            "**Will keep:** project name, `rawdata/`, `toscana-project.json` (reset to blank state), and `processed/parfiles/`.\n\n"
             "Proceed?"
         )
         self.reset_project_prompt.alert_type = "danger"
@@ -828,7 +828,7 @@ class ProjectSessionControllerMixin:
             self.workspace_entrypoint = "Continue Previous Project"
             self.workspace_result = None
             self.continue_project_message.object = (
-                "Choose a recent project or open an `ntsa-project.json` file manually."
+                "Choose a recent project or open an `toscana-project.json` file manually."
             )
             self.continue_project_message.alert_type = "secondary"
         self.current_screen = "workspace"

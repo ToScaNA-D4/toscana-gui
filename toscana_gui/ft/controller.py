@@ -8,9 +8,9 @@ from typing import Any
 
 import numpy as np
 
-from ntsa.io.running_params import getRunningParams
-from ntsa.io.loading import read_xye
-from ntsa.math.fourier import getSineFT
+from toscana.io.running_params import getRunningParams
+from toscana.io.loading import read_xye
+from toscana.math.fourier import getSineFT
 
 from toscana_gui.contexts import (
     load_context_manifest,
@@ -1424,7 +1424,7 @@ class FTControllerMixin:
                         par_path = None
                     base_dir = par_path.parent if isinstance(par_path, Path) and par_path.parent.exists() else self.current_project_root
                     try:
-                        from ntsa.experiment.measurement import Measurement
+                        from toscana.experiment.measurement import Measurement
                     except Exception:
                         return None
                     try:
@@ -1448,7 +1448,7 @@ class FTControllerMixin:
         if not par_path.exists() or not par_path.is_file():
             return None
         try:
-            from ntsa.experiment.measurement import Measurement
+            from toscana.experiment.measurement import Measurement
         except Exception:
             return None
         try:

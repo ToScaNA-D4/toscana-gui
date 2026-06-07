@@ -8,7 +8,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 APP_STATE_FILENAME = "app-state.json"
-PROJECT_STATE_FILENAME = "ntsa-project.json"
+PROJECT_STATE_FILENAME = "toscana-project.json"
 PARIS_TZ = ZoneInfo("Europe/Paris")
 
 TopLevelTab = Literal[

@@ -37,11 +37,11 @@ from toscana_gui.background.plots import (
 )
 from toscana_gui.background.tasks import _working_directory
 from toscana_gui.ui.screens.background import refresh_background_section_state
-from ntsa.experiment.measurement import Measurement
-from ntsa.math.fitting import fit_and_find_extremum, get_chi
-from ntsa.io.saving import saveFile_xye
-from ntsa.math.operations import binary_sum
-from ntsa.math.signal_processing import smooth_curve
+from toscana.experiment.measurement import Measurement
+from toscana.math.fitting import fit_and_find_extremum, get_chi
+from toscana.io.saving import saveFile_xye
+from toscana.math.operations import binary_sum
+from toscana.math.signal_processing import smooth_curve
 
 BACKGROUND_SUBPROCESS_WORKER = REPO_ROOT / "background_subprocess_worker.py"
 

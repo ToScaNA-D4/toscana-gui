@@ -272,7 +272,7 @@ def update_vanadium_self_fit_preview_figure(
     if mode == "Differential cross section":
         from math import pi
 
-        from ntsa.isotopes.core import elemento
+        from toscana.isotopes.core import elemento
 
         factor = float(elemento("V").sig_sca) / (4.0 * float(pi))
         if (

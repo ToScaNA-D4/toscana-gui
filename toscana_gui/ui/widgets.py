@@ -189,7 +189,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.manual_project_file_input = pn.widgets.TextInput(
         name="Project File",
-        placeholder=r"D:\ILL\ToScaNA\Projects\my-session\ntsa-project.json",
+        placeholder=r"D:\ILL\ToScaNA\Projects\my-session\toscana-project.json",
         sizing_mode="stretch_width",
     )
     shell.manual_project_file_mode = pn.widgets.RadioBoxGroup(
@@ -238,7 +238,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.manual_project_file_selector = pn.widgets.FileSelector(
         directory=str(REPO_ROOT),
-        file_pattern="ntsa-project.json",
+        file_pattern="toscana-project.json",
         only_files=True,
         size=8,
         sizing_mode="stretch_width",
@@ -251,7 +251,7 @@ def initialize_shell_widgets(shell) -> None:
         height=52,
     )
     shell.continue_project_message = pn.pane.Alert(
-        "Choose a recent project or open an `ntsa-project.json` file manually.",
+        "Choose a recent project or open an `toscana-project.json` file manually.",
         alert_type="secondary",
         sizing_mode="stretch_width",
     )
@@ -2435,7 +2435,7 @@ def initialize_shell_widgets(shell) -> None:
 
     shell.normalization_fit_params_panel = pn.Card(
         pn.pane.Markdown(
-            "Define the fitting parameters and bounds for `ntsa.models.scattering.vanaQdep`.",
+            "Define the fitting parameters and bounds for `toscana.models.scattering.vanaQdep`.",
             sizing_mode="stretch_width",
             css_classes=["toscana-normalization-fit-panel-lead"],
         ),

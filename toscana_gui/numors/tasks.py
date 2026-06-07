@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import ntsa.io.parameters as parameters_module
+import toscana.io.parameters as parameters_module
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from os import PathLike, chdir, getcwd
 from pathlib import Path
 from typing import Any, Callable
 
-from ntsa.io.parameters import readParam
+from toscana.io.parameters import readParam
 
 NUMORS_SOURCE_OPTIONS = ("Select File", "Write Path")
 NUMORS_PARFILES_DIR = Path("processed") / "parfiles"
