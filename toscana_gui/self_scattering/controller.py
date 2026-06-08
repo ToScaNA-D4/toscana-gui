@@ -1093,7 +1093,7 @@ class SelfScatteringControllerMixin:
             # Best-effort recompute from persisted fit params if available.
             if isinstance(fit, dict) and isinstance(fit.get("fit"), dict):
                 try:
-                    from ntsa.models.scattering import self024
+                    from toscana.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -1233,10 +1233,10 @@ class SelfScatteringControllerMixin:
             return
 
         try:
-            from ntsa.models.scattering import self024
+            from toscana.models.scattering import self024
         except Exception as exc:
             if hasattr(self, "_show_error_toast"):
-                self._show_error_toast(f"Could not import `ntsa.models.scattering.self024`: {exc}")
+                self._show_error_toast(f"Could not import `toscana.models.scattering.self024`: {exc}")
             return
 
         try:
@@ -1601,7 +1601,7 @@ class SelfScatteringControllerMixin:
                 corrected = fit.get("corrected")
             if not isinstance(corrected, np.ndarray) and isinstance(fit.get("fit"), dict):
                 try:
-                    from ntsa.models.scattering import self024
+                    from toscana.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -2427,8 +2427,8 @@ class SelfScatteringControllerMixin:
             qspdata_target_q = qspdata_target_dir / filename_q
             qspdata_target_a = qspdata_target_dir / filename_a
 
-            from ntsa.io.saving import saveFile_xye
-            from ntsa.physics.conversions import q2ang
+            from toscana.io.saving import saveFile_xye
+            from toscana.physics.conversions import q2ang
 
             timestamp = now_iso()
             fit_payload_live = self._self_fit_current_last_fit_payload()
@@ -2642,7 +2642,7 @@ class SelfScatteringControllerMixin:
         base_dir = par_path.parent if par_path.parent.exists() else self.current_project_root
 
         try:
-            from ntsa.experiment.measurement import Measurement
+            from toscana.experiment.measurement import Measurement
         except Exception:
             return None
         try:
@@ -2654,14 +2654,14 @@ class SelfScatteringControllerMixin:
     def _self_fit_model_function(self, model: str):
         model = self._normalize_self_fit_model(model)
         if model == self._SELF_FIT_MODEL_POLY:
-            from ntsa.math.polynomials import polyQ4 as base_func
+            from toscana.math.polynomials import polyQ4 as base_func
 
             return base_func, ["a0", "a1", "a2", "a3", "a4"]
         if model == self._SELF_FIT_MODEL_LORGAU:
-            from ntsa.math.line_shapes import LorGau as base_func
+            from toscana.math.line_shapes import LorGau as base_func
 
             return base_func, ["f0", "eta", "sigma", "gamma", "bckg"]
-        from ntsa.models.scattering import vanaQdep as base_func
+        from toscana.models.scattering import vanaQdep as base_func
 
         return base_func, ["a0", "a1", "a2", "A", "lowQ", "Q0", "dQ"]
 
@@ -2974,7 +2974,7 @@ class SelfScatteringControllerMixin:
                 corrected = fit.get("corrected")
             if not isinstance(corrected, np.ndarray) and isinstance(fit.get("fit"), dict):
                 try:
-                    from ntsa.models.scattering import self024
+                    from toscana.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -3226,7 +3226,7 @@ class SelfScatteringControllerMixin:
                 corrected = fit.get("corrected")
             if not isinstance(corrected, np.ndarray) and isinstance(fit.get("fit"), dict):
                 try:
-                    from ntsa.models.scattering import self024
+                    from toscana.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -3452,11 +3452,11 @@ class SelfScatteringControllerMixin:
 
         try:
             if model == self._SELF_FIT_MODEL_POLY:
-                from ntsa.math.polynomials import polyQ4 as base_func
+                from toscana.math.polynomials import polyQ4 as base_func
             elif model == self._SELF_FIT_MODEL_LORGAU:
-                from ntsa.math.line_shapes import LorGau as base_func
+                from toscana.math.line_shapes import LorGau as base_func
             else:
-                from ntsa.models.scattering import vanaQdep as base_func
+                from toscana.models.scattering import vanaQdep as base_func
         except Exception:
             return None
 
@@ -3681,11 +3681,11 @@ class SelfScatteringControllerMixin:
             # Resolve model function.
             try:
                 if model == self._SELF_FIT_MODEL_POLY:
-                    from ntsa.math.polynomials import polyQ4 as base_func
+                    from toscana.math.polynomials import polyQ4 as base_func
                 elif model == self._SELF_FIT_MODEL_LORGAU:
-                    from ntsa.math.line_shapes import LorGau as base_func
+                    from toscana.math.line_shapes import LorGau as base_func
                 else:
-                    from ntsa.models.scattering import vanaQdep as base_func
+                    from toscana.models.scattering import vanaQdep as base_func
             except Exception as exc:
                 self._self_fit_set_alert(f"Could not import model function: {exc}", alert_type="danger")
                 return

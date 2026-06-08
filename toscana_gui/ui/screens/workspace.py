@@ -88,7 +88,7 @@ def build_continue_project_layout(shell) -> list[object]:
         level="info",
         message=(
             "Continue a previous session by choosing a recent project or opening an "
-            "`ntsa-project.json` file directly."
+            "`toscana-project.json` file directly."
         ),
         persistent=False,
     )

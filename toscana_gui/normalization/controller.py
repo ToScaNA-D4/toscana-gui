@@ -13,7 +13,7 @@ import numpy as np
 
 import panel as pn
 
-from ntsa.io.loading import read_xye
+from toscana.io.loading import read_xye
 
 from toscana_gui.contexts import (
     context_manifest_relpath,
@@ -311,7 +311,7 @@ class NormalizationControllerMixin:
         Clear in-memory (non-persisted) normalization runtime state.
 
         This prevents cached fit/export results and Plotly view state from
-        leaking across projects when switching between `ntsa-project.json`
+        leaking across projects when switching between `toscana-project.json`
         files within the same running Panel session.
         """
 
@@ -921,7 +921,7 @@ class NormalizationControllerMixin:
         base_dir = par_path.parent if par_path.parent.exists() else self.current_project_root
 
         try:
-            from ntsa.experiment.measurement import Measurement
+            from toscana.experiment.measurement import Measurement
         except Exception:
             return None
         try:
@@ -1013,9 +1013,9 @@ class NormalizationControllerMixin:
         # Compute the normalization factor from the Measurement geometry / densities.
         from math import pi
 
-        from ntsa.isotopes.core import elemento
-        from ntsa.physics.geometry import getCylVolume
-        from ntsa.physics.properties import getAtomicDensity
+        from toscana.isotopes.core import elemento
+        from toscana.physics.geometry import getCylVolume
+        from toscana.physics.properties import getAtomicDensity
 
         outer_diam = float(getattr(measurement, "OuterDiam", 0.0) or 0.0)
         beam_height = float(getattr(measurement, "beamHeight", 0.0) or 0.0)
@@ -1392,7 +1392,7 @@ class NormalizationControllerMixin:
                     q_sorted = q_all_f[order]
                     y_sorted = y_all_f[order]
 
-                    from ntsa.models.scattering import vanaQdep
+                    from toscana.models.scattering import vanaQdep
 
                     popt_arr = np.asarray(self._normalization_last_fit.get("popt"), dtype=float)
                     norSelf = vanaQdep(q_sorted, *popt_arr)
@@ -1635,7 +1635,7 @@ class NormalizationControllerMixin:
             if popt_arr.size != 7 or not np.all(np.isfinite(popt_arr)):
                 raise RuntimeError("Fit parameters are invalid; rerun the fit.")
 
-            from ntsa.models.scattering import vanaQdep
+            from toscana.models.scattering import vanaQdep
 
             norSelf = vanaQdep(q_sorted, *popt_arr)
             # Pure sigmoid uses polynomial = 1.
@@ -2343,7 +2343,7 @@ class NormalizationControllerMixin:
                 sigma_warning = "Uncertainties missing; using estimated sigma = 1/q^2 weighting."
 
             from scipy.optimize import curve_fit
-            from ntsa.models.scattering import vanaQdep
+            from toscana.models.scattering import vanaQdep
 
             if pinned_A:
                 # SciPy bounds require lower < upper; "pinning" is handled by removing A from the fit.

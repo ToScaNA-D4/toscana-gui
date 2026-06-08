@@ -6,8 +6,8 @@ from typing import Any
 
 import numpy as np
 
-from ntsa.io.loading import read_xye
-from ntsa.math.fourier import backFT
+from toscana.io.loading import read_xye
+from toscana.math.fourier import backFT
 
 from toscana_gui.contexts import (
     load_context_manifest,
