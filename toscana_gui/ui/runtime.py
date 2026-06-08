@@ -308,13 +308,41 @@ def refresh_interaction_states(shell) -> None:
         shell.normalization_custom_files_switch.disabled = disabled
         if hasattr(shell, "normalization_custom_files_toggle_button"):
             shell.normalization_custom_files_toggle_button.disabled = disabled
+        if hasattr(shell, "normalization_export_folder_input"):
+            shell.normalization_export_folder_input.disabled = disabled
+        if hasattr(shell, "normalization_export_button"):
+            shell.normalization_export_button.disabled = disabled or bool(getattr(shell, "operation_in_progress", False))
+        if hasattr(shell, "normalization_export_confirm_button"):
+            shell.normalization_export_confirm_button.disabled = disabled
+        if hasattr(shell, "normalization_export_cancel_button"):
+            shell.normalization_export_cancel_button.disabled = disabled
         if hasattr(shell, "_refresh_normalization_fit_params_button_states"):
             shell._refresh_normalization_fit_params_button_states()
+        if hasattr(shell, "_refresh_normalization_export_button_states"):
+            shell._refresh_normalization_export_button_states()
         if hasattr(shell, "_sync_normalization_fit_params_export_prompt_visibility"):
             shell._sync_normalization_fit_params_export_prompt_visibility()
+        if hasattr(shell, "_sync_normalization_export_prompt_visibility"):
+            shell._sync_normalization_export_prompt_visibility()
 
     if is_background_tab and hasattr(shell, "_refresh_background_export_hovercard"):
         shell._refresh_background_export_hovercard()
+    if hasattr(shell, "_refresh_normalization_export_hovercard"):
+        shell._refresh_normalization_export_hovercard()
+    is_self_tab = getattr(shell, "current_top_level_tab", None) == "self"
+    if hasattr(shell, "self_export_folder_input"):
+        shell.self_export_folder_input.disabled = disabled
+    if hasattr(shell, "self_export_button"):
+        export_ready = bool(shell._self_export_snapshot().get("ready", False)) if is_self_tab and hasattr(shell, "_self_export_snapshot") else False
+        shell.self_export_button.disabled = disabled or not export_ready
+    if hasattr(shell, "self_export_confirm_button"):
+        shell.self_export_confirm_button.disabled = disabled
+    if hasattr(shell, "self_export_cancel_button"):
+        shell.self_export_cancel_button.disabled = disabled
+    if hasattr(shell, "_refresh_self_export_hovercard"):
+        shell._refresh_self_export_hovercard()
+    if hasattr(shell, "_sync_self_export_prompt_visibility"):
+        shell._sync_self_export_prompt_visibility()
     if hasattr(shell, "_sync_background_export_prompt_visibility"):
         shell._sync_background_export_prompt_visibility()
     if hasattr(shell, "_sync_ft_real_space_export_prompt_visibility"):

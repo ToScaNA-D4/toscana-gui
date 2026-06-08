@@ -115,7 +115,7 @@ def remember_project(app_state, project_state: ProjectState, project_file: Path)
 
 def create_new_project(project_name: str, project_root: Path) -> tuple[ProjectState, Path]:
     project_state = create_project_state(project_name, last_top_level_tab="project")
-    project_file = project_root / "toscana-project.json"
+    project_file = project_root / "ntsa-project.json"
     save_project_state(project_file, project_state)
     return project_state, project_file.resolve()
 

@@ -189,7 +189,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.manual_project_file_input = pn.widgets.TextInput(
         name="Project File",
-        placeholder=r"D:\ILL\ToScaNA\Projects\my-session\toscana-project.json",
+        placeholder=r"D:\ILL\ToScaNA\Projects\my-session\ntsa-project.json",
         sizing_mode="stretch_width",
     )
     shell.manual_project_file_mode = pn.widgets.RadioBoxGroup(
@@ -238,7 +238,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.manual_project_file_selector = pn.widgets.FileSelector(
         directory=str(REPO_ROOT),
-        file_pattern="toscana-project.json",
+        file_pattern="ntsa-project.json",
         only_files=True,
         size=8,
         sizing_mode="stretch_width",
@@ -251,7 +251,7 @@ def initialize_shell_widgets(shell) -> None:
         height=52,
     )
     shell.continue_project_message = pn.pane.Alert(
-        "Choose a recent project or open an `toscana-project.json` file manually.",
+        "Choose a recent project or open an `ntsa-project.json` file manually.",
         alert_type="secondary",
         sizing_mode="stretch_width",
     )
@@ -1977,48 +1977,81 @@ def initialize_shell_widgets(shell) -> None:
         width=800,
         height=600,
     )
-    shell.normalization_sample_norm_export_button = pn.widgets.Button(
+
+    shell.normalization_export_folder_input = pn.widgets.TextInput(
+        name="Export folder",
+        value="processed/normalization/",
+        placeholder="processed/normalization/",
+        sizing_mode="stretch_width",
+    )
+    shell.normalization_export_button = pn.widgets.Button(
         name="Export Data",
-        button_type="success",
+        button_type="primary",
         sizing_mode="fixed",
-        width=130,
-        height=40,
+        width=180,
+        height=48,
         disabled=True,
     )
-    shell.normalization_sample_norm_export_prompt = pn.pane.Alert(
+    shell.normalization_export_info_hover = pn.widgets.TooltipIcon(
+        value="",
+        sizing_mode="fixed",
+        width=36,
+        height=36,
+        margin=(0, 0, 0, 0),
+    )
+    shell.normalization_export_prompt = pn.pane.Alert(
         "",
         alert_type="warning",
         sizing_mode="stretch_width",
         visible=False,
     )
-    shell.normalization_sample_norm_export_confirm_button = pn.widgets.Button(
-        name="Export",
-        button_type="success",
-        width=120,
-        height=40,
+    shell.normalization_export_confirm_button = pn.widgets.Button(
+        name="Proceed",
+        button_type="danger",
+        sizing_mode="fixed",
+        width=140,
+        height=44,
         disabled=False,
     )
-    shell.normalization_sample_norm_export_cancel_button = pn.widgets.Button(
+    shell.normalization_export_cancel_button = pn.widgets.Button(
         name="Cancel",
         button_type="light",
+        sizing_mode="fixed",
         width=120,
-        height=40,
+        height=44,
         disabled=False,
     )
-    shell.normalization_sample_norm_export_prompt_card = pn.Card(
-        shell.normalization_sample_norm_export_prompt,
+    shell.normalization_export_prompt_card = pn.Card(
+        shell.normalization_export_prompt,
         pn.Row(
-            shell.normalization_sample_norm_export_confirm_button,
-            shell.normalization_sample_norm_export_cancel_button,
+            shell.normalization_export_confirm_button,
+            shell.normalization_export_cancel_button,
             sizing_mode="stretch_width",
             styles={"justify-content": "flex-end", "gap": "10px"},
             margin=(8, 0, 0, 0),
         ),
         pn.Spacer(height=6),
-        title="Export Normalized Sample",
+        title="Confirm Export",
         sizing_mode="stretch_width",
         visible=False,
         css_classes=["toscana-export-prompt-card"],
+    )
+    shell.normalization_export_card = pn.Card(
+        pn.Column(
+            shell.normalization_export_folder_input,
+            pn.Row(
+                shell.normalization_export_button,
+                shell.normalization_export_info_hover,
+                sizing_mode="stretch_width",
+            ),
+            sizing_mode="stretch_width",
+        ),
+        shell.normalization_export_prompt_card,
+        title="Export Data",
+        sizing_mode="stretch_width",
+        css_classes=["toscana-overflow-visible"],
+        styles={"overflow": "visible", "margin-bottom": "180px"},
+        visible=True,
     )
 
     shell.normalization_fit_params_action_hint = pn.pane.Markdown(
@@ -2407,12 +2440,12 @@ def initialize_shell_widgets(shell) -> None:
         pn.Row(
             shell.normalization_fit_params_suggest_button,
             shell.normalization_fit_params_run_button,
-            shell.normalization_fit_params_export_button,
+            pn.Spacer(),
             sizing_mode="stretch_width",
             css_classes=["toscana-normalization-fit-action-row"],
         ),
         shell.normalization_fit_params_action_hint,
-        shell.normalization_fit_params_export_prompt_card,
+        pn.Spacer(height=0),
         sizing_mode="stretch_width",
         css_classes=["toscana-normalization-fit-setup-card"],
     )
@@ -2435,7 +2468,7 @@ def initialize_shell_widgets(shell) -> None:
 
     shell.normalization_fit_params_panel = pn.Card(
         pn.pane.Markdown(
-            "Define the fitting parameters and bounds for `toscana.models.scattering.vanaQdep`.",
+            "Define the fitting parameters and bounds for `ntsa.models.scattering.vanaQdep`.",
             sizing_mode="stretch_width",
             css_classes=["toscana-normalization-fit-panel-lead"],
         ),
@@ -2468,7 +2501,7 @@ def initialize_shell_widgets(shell) -> None:
 
     shell.normalization_fit_data_use_sliders = pn.widgets.Toggle(
         name="Use sliders",
-        value=False,
+        value=True,
         button_type="light",
         sizing_mode="fixed",
         width=140,
@@ -2673,7 +2706,7 @@ def initialize_shell_widgets(shell) -> None:
     shell.normalization_fit_data_redesign_window_table = pn.pane.HTML(
         "",
         sizing_mode="fixed",
-        width=320,
+        width=292,
         margin=(0, 0, 0, 0),
         css_classes=["toscana-fit-window-table-host"],
     )
@@ -2697,8 +2730,8 @@ def initialize_shell_widgets(shell) -> None:
         shell.normalization_fit_data_redesign_window_table,
         pn.Spacer(),
         sizing_mode="stretch_height",
-        width=320,
-        min_width=320,
+        width=292,
+        min_width=292,
         styles={
             "padding": "0",
         },
@@ -2879,10 +2912,10 @@ def initialize_shell_widgets(shell) -> None:
             ],
         ),
         sizing_mode="fixed",
-        width=206,
+        width=320,
         height=450,
         styles={
-            "align-items": "center",
+            "align-items": "flex-start",
             "box-sizing": "border-box",
             "gap": "4px",
             "padding": "0px",
@@ -3688,7 +3721,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.self_lowq_use_sliders = pn.widgets.Toggle(
         name="Use sliders",
-        value=False,
+        value=True,
         button_type="light",
         sizing_mode="fixed",
         width=140,
@@ -4105,7 +4138,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.self_data_selection_use_sliders = pn.widgets.Toggle(
         name="Use sliders",
-        value=False,
+        value=True,
         button_type="light",
         sizing_mode="fixed",
         width=140,
@@ -4522,14 +4555,6 @@ def initialize_shell_widgets(shell) -> None:
         height=40,
         disabled=True,
     )
-    shell.self_fit_params_export_button = pn.widgets.Button(
-        name="Export Data",
-        button_type="success",
-        sizing_mode="fixed",
-        width=130,
-        height=40,
-        disabled=True,
-    )
 
     shell.self_fit_params_bounds_toggle = pn.widgets.Toggle(
         name="Advanced bounds",
@@ -4563,48 +4588,80 @@ def initialize_shell_widgets(shell) -> None:
         css_classes=["toscana-fit-window-table-host"],
     )
 
-    shell.self_static_structure_factor_export_button = pn.widgets.Button(
+    shell.self_export_folder_input = pn.widgets.TextInput(
+        name="Export folder",
+        value="processed/self_scattering/",
+        placeholder="processed/self_scattering/",
+        sizing_mode="stretch_width",
+    )
+    shell.self_export_button = pn.widgets.Button(
         name="Export Data",
-        button_type="success",
+        button_type="primary",
         sizing_mode="fixed",
-        width=130,
-        height=40,
+        width=180,
+        height=48,
         disabled=True,
     )
-    shell.self_static_structure_factor_export_prompt = pn.pane.Alert(
+    shell.self_export_info_hover = pn.widgets.TooltipIcon(
+        value="",
+        sizing_mode="fixed",
+        width=36,
+        height=36,
+        margin=(0, 0, 0, 0),
+    )
+    shell.self_export_prompt = pn.pane.Alert(
         "",
         alert_type="warning",
         sizing_mode="stretch_width",
         visible=False,
     )
-    shell.self_static_structure_factor_export_confirm_button = pn.widgets.Button(
+    shell.self_export_confirm_button = pn.widgets.Button(
         name="Export",
         button_type="success",
+        sizing_mode="fixed",
         width=120,
         height=40,
         disabled=False,
     )
-    shell.self_static_structure_factor_export_cancel_button = pn.widgets.Button(
+    shell.self_export_cancel_button = pn.widgets.Button(
         name="Cancel",
         button_type="light",
+        sizing_mode="fixed",
         width=120,
         height=40,
         disabled=False,
     )
-    shell.self_static_structure_factor_export_prompt_card = pn.Card(
-        shell.self_static_structure_factor_export_prompt,
+    shell.self_export_prompt_card = pn.Card(
+        shell.self_export_prompt,
         pn.Row(
-            shell.self_static_structure_factor_export_confirm_button,
-            shell.self_static_structure_factor_export_cancel_button,
+            shell.self_export_confirm_button,
+            shell.self_export_cancel_button,
             sizing_mode="stretch_width",
             styles={"justify-content": "flex-end", "gap": "10px"},
             margin=(8, 0, 0, 0),
         ),
         pn.Spacer(height=6),
-        title="Export Static Structure Factor",
+        title="Confirm Export",
         sizing_mode="stretch_width",
         visible=False,
         css_classes=["toscana-export-prompt-card"],
+    )
+    shell.self_export_card = pn.Card(
+        pn.Column(
+            shell.self_export_folder_input,
+            pn.Row(
+                shell.self_export_button,
+                shell.self_export_info_hover,
+                sizing_mode="stretch_width",
+            ),
+            sizing_mode="stretch_width",
+        ),
+        shell.self_export_prompt_card,
+        title="Export Data",
+        sizing_mode="stretch_width",
+        css_classes=["toscana-overflow-visible"],
+        styles={"overflow": "visible", "margin-bottom": "180px"},
+        visible=True,
     )
 
     shell.self_fit_result_table = pn.pane.HTML(
@@ -4613,42 +4670,6 @@ def initialize_shell_widgets(shell) -> None:
         width=320,
         margin=(0, 0, 0, 0),
         css_classes=["toscana-fit-window-table-host"],
-    )
-
-    shell.self_fit_export_prompt = pn.pane.Alert(
-        "",
-        alert_type="warning",
-        sizing_mode="stretch_width",
-        visible=False,
-    )
-    shell.self_fit_export_confirm_button = pn.widgets.Button(
-        name="Export",
-        button_type="success",
-        sizing_mode="fixed",
-        width=120,
-        height=40,
-    )
-    shell.self_fit_export_cancel_button = pn.widgets.Button(
-        name="Cancel",
-        button_type="light",
-        sizing_mode="fixed",
-        width=120,
-        height=40,
-    )
-    shell.self_fit_export_prompt_card = pn.Card(
-        shell.self_fit_export_prompt,
-        pn.Row(
-            shell.self_fit_export_confirm_button,
-            shell.self_fit_export_cancel_button,
-            sizing_mode="stretch_width",
-            styles={"justify-content": "flex-end", "gap": "10px"},
-            margin=(8, 0, 0, 0),
-        ),
-        pn.Spacer(height=6),
-        sizing_mode="stretch_width",
-        visible=False,
-        title="Export Self Fit",
-        css_classes=["toscana-export-prompt-card"],
     )
 
     def _self_fit_fix_toggle(default: bool = False) -> pn.widgets.Checkbox:

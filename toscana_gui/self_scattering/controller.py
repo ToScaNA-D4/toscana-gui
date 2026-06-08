@@ -437,17 +437,6 @@ class SelfScatteringControllerMixin:
                 self.self_fit_result_table.object = ""
             except Exception:
                 pass
-        if hasattr(self, "self_fit_export_prompt"):
-            try:
-                self.self_fit_export_prompt.visible = False
-                self.self_fit_export_prompt.object = ""
-            except Exception:
-                pass
-        if hasattr(self, "_sync_self_fit_export_prompt_visibility"):
-            try:
-                self._sync_self_fit_export_prompt_visibility()
-            except Exception:
-                pass
         if hasattr(self, "self_static_structure_factor_plot_pane"):
             try:
                 self.self_static_structure_factor_plot_pane.object = None
@@ -458,17 +447,13 @@ class SelfScatteringControllerMixin:
                 self.self_static_structure_factor_summary_table.object = ""
             except Exception:
                 pass
-        if hasattr(self, "self_static_structure_factor_export_prompt"):
+        if hasattr(self, "self_export_prompt"):
             try:
-                self.self_static_structure_factor_export_prompt.visible = False
-                self.self_static_structure_factor_export_prompt.object = ""
+                self.self_export_prompt.visible = False
+                self.self_export_prompt.object = ""
             except Exception:
                 pass
-        if hasattr(self, "_sync_self_static_structure_factor_export_prompt_visibility"):
-            try:
-                self._sync_self_static_structure_factor_export_prompt_visibility()
-            except Exception:
-                pass
+        self._pending_self_export = None
 
     def _load_self_scattering_state_into_widgets(self) -> None:
         if self.current_project_state is None or self.current_project_root is None:
@@ -497,6 +482,10 @@ class SelfScatteringControllerMixin:
             self._refresh_self_fit_panel()
         if hasattr(self, "_refresh_self_static_structure_factor_panel"):
             self._refresh_self_static_structure_factor_panel()
+        if hasattr(self, "_refresh_self_export_hovercard"):
+            self._refresh_self_export_hovercard()
+        if hasattr(self, "_refresh_self_export_button_states"):
+            self._refresh_self_export_button_states()
 
     def _get_self_context_entries(self) -> list[dict[str, Any]]:
         if self.current_project_state is None:
@@ -670,6 +659,10 @@ class SelfScatteringControllerMixin:
             self._refresh_self_fit_panel()
         if hasattr(self, "_refresh_self_static_structure_factor_panel"):
             self._refresh_self_static_structure_factor_panel()
+        if hasattr(self, "_refresh_self_export_hovercard"):
+            self._refresh_self_export_hovercard()
+        if hasattr(self, "_refresh_self_export_button_states"):
+            self._refresh_self_export_button_states()
 
     def _toggle_self_lowq_input_mode(self, _event=None) -> None:
         if self.current_project_state is None or getattr(self, "_suspend_self_scattering_events", False):
@@ -1100,7 +1093,7 @@ class SelfScatteringControllerMixin:
             # Best-effort recompute from persisted fit params if available.
             if isinstance(fit, dict) and isinstance(fit.get("fit"), dict):
                 try:
-                    from toscana.models.scattering import self024
+                    from ntsa.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -1240,10 +1233,10 @@ class SelfScatteringControllerMixin:
             return
 
         try:
-            from toscana.models.scattering import self024
+            from ntsa.models.scattering import self024
         except Exception as exc:
             if hasattr(self, "_show_error_toast"):
-                self._show_error_toast(f"Could not import `toscana.models.scattering.self024`: {exc}")
+                self._show_error_toast(f"Could not import `ntsa.models.scattering.self024`: {exc}")
             return
 
         try:
@@ -1608,7 +1601,7 @@ class SelfScatteringControllerMixin:
                 corrected = fit.get("corrected")
             if not isinstance(corrected, np.ndarray) and isinstance(fit.get("fit"), dict):
                 try:
-                    from toscana.models.scattering import self024
+                    from ntsa.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -2026,12 +2019,535 @@ class SelfScatteringControllerMixin:
         pane.alert_type = str(alert_type)
         pane.visible = bool(message)
 
-    def _sync_self_fit_export_prompt_visibility(self) -> None:
-        card = getattr(self, "self_fit_export_prompt_card", None)
-        pane = getattr(self, "self_fit_export_prompt", None)
+    def _sync_self_export_prompt_visibility(self) -> None:
+        card = getattr(self, "self_export_prompt_card", None)
+        pane = getattr(self, "self_export_prompt", None)
         if card is None or pane is None:
             return
         card.visible = bool(getattr(pane, "visible", False))
+
+    def _resolve_self_export_dir(self) -> Path | None:
+        if self.current_project_root is None:
+            return None
+        raw = str(getattr(getattr(self, "self_export_folder_input", None), "value", "") or "").strip()
+        if not raw:
+            raw = "processed/self_scattering/"
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = (self.current_project_root / candidate).resolve(strict=False)
+        return candidate
+
+    def _self_export_snapshot(self) -> dict[str, object]:
+        snapshot: dict[str, object] = {
+            "ready": False,
+            "context_id": None,
+            "export_root": None,
+            "user_target_dir": None,
+            "canonical_target_dir": None,
+            "qspdata_target_dir": None,
+            "fit_model": None,
+            "sample_title": None,
+            "filename_q": None,
+            "filename_a": None,
+            "filename_fit": None,
+            "reason": None,
+        }
+
+        if self.current_project_root is None or self.current_project_state is None:
+            snapshot["reason"] = "Open a project first."
+            return snapshot
+
+        context_id = str(getattr(getattr(self, "self_context_select", None), "value", "") or "").strip()
+        if not context_id:
+            snapshot["reason"] = "Select a context first."
+            return snapshot
+        snapshot["context_id"] = context_id
+
+        fit_payload = self._self_static_structure_factor_current_fit_payload()
+        if not isinstance(fit_payload, dict):
+            snapshot["reason"] = "Run Fit first."
+            return snapshot
+        if self._self_static_structure_factor_is_stale(fit_payload):
+            snapshot["reason"] = "Fit is stale. Run Fit again."
+            return snapshot
+
+        export_root = self._resolve_self_export_dir()
+        snapshot["export_root"] = str(export_root) if export_root is not None else None
+        if export_root is None:
+            snapshot["reason"] = "Choose an export folder."
+            return snapshot
+
+        manifest_ref = self._selected_self_manifest_ref()
+        payload = load_context_manifest(self.current_project_root, manifest_ref) if manifest_ref else None
+        payload = payload if isinstance(payload, dict) else None
+        measurement = self._load_measurement_for_self_context(payload) if isinstance(payload, dict) else None
+        if measurement is None or not hasattr(measurement, "wavelength"):
+            snapshot["reason"] = "Measurement/wavelength missing."
+            return snapshot
+        try:
+            wl = float(getattr(measurement, "wavelength"))
+        except Exception:
+            wl = float("nan")
+        if not np.isfinite(wl) or wl <= 0:
+            snapshot["reason"] = "Invalid wavelength."
+            return snapshot
+
+        series = self._compute_self_static_structure_factor_series()
+        if series is None:
+            snapshot["reason"] = "Static Structure Factor not ready."
+            return snapshot
+
+        q = series.get("q")
+        soq = series.get("soq")
+        soq_err = series.get("soq_err")
+        if q is None or soq is None or soq_err is None:
+            snapshot["reason"] = "No S(Q) series available."
+            return snapshot
+
+        sample_title = None
+        try:
+            if hasattr(measurement, "Title"):
+                sample_title = str(getattr(measurement, "Title") or "").strip()
+        except Exception:
+            sample_title = None
+        if not sample_title and isinstance(payload, dict):
+            sample = payload.get("sample") if isinstance(payload.get("sample"), dict) else {}
+            if isinstance(sample.get("title"), str):
+                sample_title = sample.get("title")
+        stem = self._sanitize_export_filename_stem(str(sample_title or context_id))
+        filename_q = f"{stem}_SOQ.qdat"
+        filename_a = f"{stem}_SOQ.adat"
+
+        user_target_dir = export_root / context_id
+        canonical_target_dir = self.current_project_root / "processed" / "self_scattering" / context_id
+        qspdata_target_dir = self.current_project_root / "processed" / "qspdata"
+        snapshot["user_target_dir"] = str(user_target_dir)
+        snapshot["canonical_target_dir"] = str(canonical_target_dir)
+        snapshot["qspdata_target_dir"] = str(qspdata_target_dir)
+        snapshot["fit_model"] = self._normalize_self_fit_model(fit_payload.get("model"))
+        snapshot["sample_title"] = sample_title or ""
+        snapshot["filename_q"] = filename_q
+        snapshot["filename_a"] = filename_a
+        snapshot["filename_fit"] = "self_fit.qdat"
+        snapshot["ready"] = True
+        return snapshot
+
+    def _refresh_self_export_hovercard(self) -> None:
+        if not hasattr(self, "self_export_info_hover"):
+            return
+
+        snap = self._self_export_snapshot()
+        ready = bool(snap.get("ready", False))
+        status = "Ready" if ready else "Not ready"
+        reason = html_escape(str(snap.get("reason") or ""))
+
+        body_lines = [f"<div><strong>Status:</strong> {html_escape(status)}</div>"]
+        if ready:
+            context_id = html_escape(str(snap.get("context_id") or ""))
+            export_root = html_escape(str(snap.get("export_root") or ""))
+            user_target_dir = html_escape(str(snap.get("user_target_dir") or ""))
+            canonical_target_dir = html_escape(str(snap.get("canonical_target_dir") or ""))
+            qspdata_target_dir = html_escape(str(snap.get("qspdata_target_dir") or ""))
+            fit_model = html_escape(str(snap.get("fit_model") or ""))
+            filename_q = html_escape(str(snap.get("filename_q") or ""))
+            filename_a = html_escape(str(snap.get("filename_a") or ""))
+            filename_fit = html_escape(str(snap.get("filename_fit") or ""))
+            if context_id:
+                body_lines.append(f"<div><strong>Context:</strong> {context_id}</div>")
+            if fit_model:
+                body_lines.append(f"<div><strong>Fit model:</strong> {fit_model}</div>")
+            if export_root:
+                body_lines.append(f"<div><strong>Export root:</strong> {export_root}</div>")
+            if user_target_dir and user_target_dir != canonical_target_dir:
+                body_lines.append(f"<div><strong>User export:</strong> {user_target_dir}</div>")
+            if canonical_target_dir:
+                body_lines.append(f"<div><strong>Canonical export:</strong> {canonical_target_dir}</div>")
+            if qspdata_target_dir:
+                body_lines.append(f"<div><strong>QSPData mirror:</strong> {qspdata_target_dir}</div>")
+            if filename_q or filename_a or filename_fit:
+                body_lines.append(
+                    "<div><strong>Files:</strong> "
+                    f"{filename_q or ''}"
+                    + (f", {filename_a}" if filename_a else "")
+                    + (f", {filename_fit}" if filename_fit else "")
+                    + "</div>"
+                )
+        elif reason:
+            body_lines.append(f"<div style=\"margin-top: 8px;\"><em>{reason}</em></div>")
+
+        self.self_export_info_hover.value = (
+            "<div style=\"max-width: 320px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; word-break: break-word;\">"
+            + "\n".join(body_lines)
+            + "</div>"
+        )
+
+    def _refresh_self_export_button_states(self) -> None:
+        if not hasattr(self, "self_export_button"):
+            return
+        can_export = bool(self._self_export_snapshot().get("ready", False))
+        disabled = bool(getattr(self, "operation_in_progress", False))
+        self.self_export_button.disabled = disabled or not can_export
+        if hasattr(self, "self_export_confirm_button"):
+            self.self_export_confirm_button.disabled = disabled
+        if hasattr(self, "self_export_cancel_button"):
+            self.self_export_cancel_button.disabled = disabled
+        self._refresh_self_export_hovercard()
+
+    def _write_self_fit_qdat(self, path: Path, fit_payload: dict[str, object], *, timestamp: str | None = None) -> None:
+        series = fit_payload.get("series") if isinstance(fit_payload, dict) else None
+        if not isinstance(series, dict):
+            raise RuntimeError("Self fit series is missing.")
+
+        q = np.asarray(series.get("q"), dtype=float)
+        y = np.asarray(series.get("y"), dtype=float)
+        y_fit = np.asarray(series.get("y_fit"), dtype=float)
+        finite = np.isfinite(q) & np.isfinite(y) & np.isfinite(y_fit)
+        if not np.any(finite):
+            raise RuntimeError("Self fit series has no readable rows.")
+
+        q = q[finite]
+        y = y[finite]
+        y_fit = y_fit[finite]
+
+        lines = [
+            f"# timestamp: {timestamp or now_iso()}",
+            f"# model: {self._normalize_self_fit_model(fit_payload.get('model'))}",
+            "# Q data fit",
+        ]
+        for qv, yv, yfv in zip(q, y, y_fit, strict=False):
+            lines.append(f"{float(qv):.8g} {float(yv):.8g} {float(yfv):.8g}")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _on_self_export_folder_change(self, event) -> None:
+        if getattr(self, "_suspend_self_scattering_events", False) or self.current_project_state is None:
+            return
+        if event.new == event.old:
+            return
+        if hasattr(self, "self_export_prompt"):
+            self.self_export_prompt.visible = False
+            self.self_export_prompt.object = ""
+        self._sync_self_export_prompt_visibility()
+        if hasattr(self, "_refresh_self_export_hovercard"):
+            self._refresh_self_export_hovercard()
+        if hasattr(self, "_refresh_self_export_button_states"):
+            self._refresh_self_export_button_states()
+
+    def _prompt_self_export(self, _event=None) -> None:
+        if self.operation_in_progress:
+            self._show_workspace_blocked_message()
+            return
+        if self.current_project_root is None or self.current_project_state is None:
+            self._show_warning_toast("Open a project first.")
+            return
+        prompt = getattr(self, "self_export_prompt", None)
+        if prompt is not None and bool(getattr(prompt, "visible", False)):
+            self._cancel_self_export()
+            return
+
+        snap = self._self_export_snapshot()
+        if not snap.get("ready", False):
+            self._show_warning_toast(str(snap.get("reason") or "Export is not ready yet."))
+            return
+
+        user_target_dir = Path(str(snap["user_target_dir"]))
+        canonical_target_dir = Path(str(snap["canonical_target_dir"]))
+        qspdata_target_dir = Path(str(snap["qspdata_target_dir"]))
+        filename_q = str(snap.get("filename_q") or "SOQ.qdat")
+        filename_a = str(snap.get("filename_a") or "SOQ.adat")
+        filename_fit = str(snap.get("filename_fit") or "self_fit.qdat")
+
+        overwrite_targets: list[str] = []
+        for path in (
+            user_target_dir / filename_q,
+            user_target_dir / filename_a,
+            user_target_dir / filename_fit,
+            canonical_target_dir / filename_q,
+            canonical_target_dir / filename_a,
+            canonical_target_dir / filename_fit,
+            qspdata_target_dir / filename_q,
+            qspdata_target_dir / filename_a,
+        ):
+            if path.exists():
+                overwrite_targets.append(str(path))
+
+        self._pending_self_export = {
+            "user_target_dir": user_target_dir,
+            "canonical_target_dir": canonical_target_dir,
+            "qspdata_target_dir": qspdata_target_dir,
+            "filename_q": filename_q,
+            "filename_a": filename_a,
+            "filename_fit": filename_fit,
+            "overwrite_targets": overwrite_targets,
+        }
+
+        lines = [
+            f"Export folder: `{snap['export_root']}`",
+            "",
+            f"User export: `{project_relpath(self.current_project_root, user_target_dir)}`",
+            f"Canonical export: `{project_relpath(self.current_project_root, canonical_target_dir)}`",
+            f"QSPData mirror: `{project_relpath(self.current_project_root, qspdata_target_dir)}`",
+            "",
+            f"Will write: `{filename_q}`",
+            f"Will write: `{filename_a}`",
+            f"Will write: `{filename_fit}`",
+        ]
+        if overwrite_targets:
+            lines.extend(["", "**Overwrite warning:**", *[f"- `{p}`" for p in overwrite_targets]])
+
+        prompt = getattr(self, "self_export_prompt", None)
+        if prompt is not None:
+            prompt.object = "\n".join(lines)
+            prompt.alert_type = "warning" if overwrite_targets else "secondary"
+            prompt.visible = True
+        self._sync_self_export_prompt_visibility()
+        self._refresh_interaction_states()
+
+    def _cancel_self_export(self, _event=None) -> None:
+        self._pending_self_export = None
+        if hasattr(self, "self_export_prompt"):
+            self.self_export_prompt.visible = False
+            self.self_export_prompt.object = ""
+        self._sync_self_export_prompt_visibility()
+        self._refresh_interaction_states()
+
+    def _confirm_self_export(self, _event=None) -> None:
+        if self.operation_in_progress:
+            self._show_workspace_blocked_message()
+            return
+        if getattr(self, "_pending_self_export", None) is None:
+            return
+        self._perform_self_export()
+
+    def _perform_self_export(self) -> None:
+        if self.current_project_root is None or self.current_project_state is None:
+            return
+        if getattr(self, "operation_in_progress", False):
+            return
+
+        snap = self._self_export_snapshot()
+        if not snap.get("ready", False):
+            self._show_warning_toast(str(snap.get("reason") or "Export is not ready yet."))
+            return
+
+        context_id = str(snap.get("context_id") or "").strip()
+        if not context_id:
+            self._show_warning_toast("Select a context first.")
+            return
+
+        series = self._compute_self_static_structure_factor_series()
+        if series is None:
+            self._show_warning_toast("Static Structure Factor not ready. Check prerequisites.")
+            return
+        q = series.get("q")
+        soq = series.get("soq")
+        soq_err = series.get("soq_err")
+        if q is None or soq is None or soq_err is None:
+            self._show_warning_toast("No S(Q) series available to export.")
+            return
+
+        manifest_ref = self._selected_self_manifest_ref()
+        payload = load_context_manifest(self.current_project_root, manifest_ref) if manifest_ref else None
+        payload = payload if isinstance(payload, dict) else None
+        measurement = self._load_measurement_for_self_context(payload) if isinstance(payload, dict) else None
+        if measurement is None or not hasattr(measurement, "wavelength"):
+            self._show_warning_toast("Measurement/wavelength missing; cannot export angle data.")
+            return
+        try:
+            wl = float(getattr(measurement, "wavelength"))
+        except Exception:
+            wl = float("nan")
+        if not np.isfinite(wl) or wl <= 0:
+            self._show_warning_toast("Invalid wavelength; cannot export angle data.")
+            return
+
+        sample_title = None
+        try:
+            if hasattr(measurement, "Title"):
+                sample_title = str(getattr(measurement, "Title") or "").strip()
+        except Exception:
+            sample_title = None
+        if not sample_title and isinstance(payload, dict):
+            sample = payload.get("sample") if isinstance(payload.get("sample"), dict) else {}
+            if isinstance(sample.get("title"), str):
+                sample_title = sample.get("title")
+        stem = self._sanitize_export_filename_stem(str(sample_title or context_id))
+        filename_q = f"{stem}_SOQ.qdat"
+        filename_a = f"{stem}_SOQ.adat"
+
+        pending = getattr(self, "_pending_self_export", None)
+        user_target_dir = Path(str(snap["user_target_dir"]))
+        canonical_target_dir = Path(str(snap["canonical_target_dir"]))
+        qspdata_target_dir = Path(str(snap["qspdata_target_dir"]))
+        filename_fit = str(snap.get("filename_fit") or "self_fit.qdat")
+        if isinstance(pending, dict):
+            user_target_dir = Path(str(pending.get("user_target_dir") or user_target_dir))
+            canonical_target_dir = Path(str(pending.get("canonical_target_dir") or canonical_target_dir))
+            qspdata_target_dir = Path(str(pending.get("qspdata_target_dir") or qspdata_target_dir))
+            filename_q = str(pending.get("filename_q") or filename_q)
+            filename_a = str(pending.get("filename_a") or filename_a)
+            filename_fit = str(pending.get("filename_fit") or "self_fit.qdat")
+
+        run_record = None
+        try:
+            from toscana_gui.persistence import OutputPaths, RunRecord
+
+            run_id = None
+            if hasattr(self, "_create_run_id"):
+                run_id = str(self._create_run_id())
+            run_record = RunRecord(
+                run_id=run_id or f"self-soq-{now_iso()}",
+                workflow="self_static_structure_factor_export",
+                status="running",
+                started_at=now_iso(),
+                summary=f"Exporting Static Structure Factor for context `{context_id}`",
+                output_paths=OutputPaths(),
+            )
+            if hasattr(self.current_project_state, "runs") and isinstance(self.current_project_state.runs, list):
+                self.current_project_state.runs.append(run_record)
+                if hasattr(self, "_persist_current_project_state"):
+                    self._persist_current_project_state()
+        except Exception:
+            run_record = None
+
+        self.operation_in_progress = True
+        try:
+            if hasattr(self, "_refresh_interaction_states"):
+                self._refresh_interaction_states()
+
+            user_target_dir.mkdir(parents=True, exist_ok=True)
+            canonical_target_dir.mkdir(parents=True, exist_ok=True)
+            qspdata_target_dir.mkdir(parents=True, exist_ok=True)
+
+            user_target_q = user_target_dir / filename_q
+            user_target_a = user_target_dir / filename_a
+            user_target_fit = user_target_dir / filename_fit
+            canonical_target_q = canonical_target_dir / filename_q
+            canonical_target_a = canonical_target_dir / filename_a
+            canonical_target_fit = canonical_target_dir / filename_fit
+            qspdata_target_q = qspdata_target_dir / filename_q
+            qspdata_target_a = qspdata_target_dir / filename_a
+
+            from ntsa.io.saving import saveFile_xye
+            from ntsa.physics.conversions import q2ang
+
+            timestamp = now_iso()
+            fit_payload_live = self._self_fit_current_last_fit_payload()
+            if not isinstance(fit_payload_live, dict):
+                self._show_warning_toast("Fit payload missing; cannot export self fit.")
+                return
+            fit_payload = self._self_static_structure_factor_current_fit_payload()
+            fit_model = self._normalize_self_fit_model(fit_payload.get("model")) if isinstance(fit_payload, dict) else ""
+
+            artifacts = payload.get("artifacts") if isinstance(payload, dict) else {}
+            dsdo_ref = artifacts.get("sample_dsdo_qdat") if isinstance(artifacts, dict) else None
+            dsdo_rel = ""
+            if isinstance(dsdo_ref, str) and dsdo_ref.strip():
+                try:
+                    dsdo_path = resolve_project_path(self.current_project_root, dsdo_ref)
+                    dsdo_rel = project_relpath(self.current_project_root, dsdo_path)
+                except Exception:
+                    dsdo_rel = dsdo_ref
+
+            popt = fit_payload.get("popt_full") if isinstance(fit_payload, dict) and isinstance(fit_payload.get("popt_full"), dict) else {}
+            try:
+                _base, keys = self._self_fit_model_function(fit_model)
+            except Exception:
+                keys = []
+            params_compact = ", ".join([f"{k}={popt.get(k)}" for k in keys if k in popt])
+
+            heading_common = [
+                f"timestamp: {timestamp}",
+                f"context_id: {context_id}",
+                f"sample_title: {sample_title or ''}",
+                f"fit_model: {fit_model}",
+                f"fit_params: {params_compact}",
+                f"source_sample_dsdo_qdat: {dsdo_rel}",
+                "Static structure factor",
+            ]
+            heading_q = [*heading_common, " Q (1/Ã…)         Intensity              Error"]
+            heading_a = [*heading_common, " A (deg)         Intensity              Error"]
+
+            q_arr = np.asarray(q, dtype=float)
+            y_arr = np.asarray(soq, dtype=float)
+            e_arr = np.asarray(soq_err, dtype=float)
+            ang_arr = np.asarray(q2ang(q_arr, wl), dtype=float)
+            self._write_self_fit_qdat(user_target_fit, fit_payload_live, timestamp=timestamp)
+            self._write_self_fit_qdat(canonical_target_fit, fit_payload_live, timestamp=timestamp)
+
+            for path in (user_target_q, canonical_target_q, qspdata_target_q):
+                saveFile_xye(str(path), q_arr, y_arr, e_arr, heading_q)
+            for path in (user_target_a, canonical_target_a, qspdata_target_a):
+                saveFile_xye(str(path), ang_arr, y_arr, e_arr, heading_a)
+
+            if isinstance(payload, dict):
+                artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+                artifacts["static_structure_factor_qdat"] = project_relpath(self.current_project_root, canonical_target_q)
+                artifacts["static_structure_factor_adat"] = project_relpath(self.current_project_root, canonical_target_a)
+                artifacts["static_structure_factor_qdat_qspdata"] = project_relpath(self.current_project_root, qspdata_target_q)
+                artifacts["static_structure_factor_adat_qspdata"] = project_relpath(self.current_project_root, qspdata_target_a)
+                artifacts["self_fit_qdat"] = project_relpath(self.current_project_root, canonical_target_fit)
+                payload["artifacts"] = artifacts
+                try:
+                    write_context_manifest(self.current_project_root, context_id=context_id, payload=payload)
+                except Exception:
+                    pass
+
+            if run_record is not None:
+                try:
+                    run_record.status = "succeeded"
+                    run_record.finished_at = now_iso()
+                    run_record.summary = f"Exported `{filename_q}` / `{filename_a}` / `{filename_fit}`"
+                    run_record.output_paths.generated_files = [
+                        project_relpath(self.current_project_root, canonical_target_q),
+                        project_relpath(self.current_project_root, canonical_target_a),
+                        project_relpath(self.current_project_root, qspdata_target_q),
+                        project_relpath(self.current_project_root, qspdata_target_a),
+                        project_relpath(self.current_project_root, user_target_fit),
+                        project_relpath(self.current_project_root, canonical_target_fit),
+                    ]
+                    if hasattr(self.current_project_state, "project") and hasattr(self.current_project_state.project, "updated_at"):
+                        self.current_project_state.project.updated_at = now_iso()  # type: ignore[assignment]
+                    if hasattr(self, "_persist_current_project_state"):
+                        self._persist_current_project_state()
+                except Exception:
+                    pass
+
+            if hasattr(self, "_show_success_toast"):
+                self._show_success_toast("Exported Static Structure Factor files and self fit.")
+            if hasattr(self, "self_export_prompt"):
+                self.self_export_prompt.visible = False
+                self.self_export_prompt.object = ""
+                self._sync_self_export_prompt_visibility()
+        except Exception as exc:
+            if hasattr(self, "_show_error_toast"):
+                self._show_error_toast(f"Export failed: {exc}")
+            if run_record is not None:
+                try:
+                    run_record.status = "failed"
+                    run_record.finished_at = now_iso()
+                    run_record.summary = f"Export failed: {exc}"
+                    if hasattr(self, "_persist_current_project_state"):
+                        self._persist_current_project_state()
+                except Exception:
+                    pass
+        finally:
+            self._pending_self_export = None
+            self.operation_in_progress = False
+            if hasattr(self, "_refresh_interaction_states"):
+                try:
+                    self._refresh_interaction_states()
+                except Exception:
+                    pass
+            if hasattr(self, "_refresh_self_export_hovercard"):
+                try:
+                    self._refresh_self_export_hovercard()
+                except Exception:
+                    pass
+            if hasattr(self, "_refresh_self_export_button_states"):
+                try:
+                    self._refresh_self_export_button_states()
+                except Exception:
+                    pass
 
     def _invalidate_self_fit_result(self, *, reason: str | None = None) -> None:
         self._self_fit_last = None
@@ -2045,13 +2561,6 @@ class SelfScatteringControllerMixin:
                 self.self_fit_result_table.object = ""
             except Exception:
                 pass
-        if hasattr(self, "self_fit_export_prompt"):
-            try:
-                self.self_fit_export_prompt.visible = False
-                self.self_fit_export_prompt.object = ""
-            except Exception:
-                pass
-        self._sync_self_fit_export_prompt_visibility()
         if reason and hasattr(self, "self_fit_params_status"):
             self.self_fit_params_status.object = f"**Status:** {reason}"
         if hasattr(self, "_invalidate_self_static_structure_factor_result"):
@@ -2059,13 +2568,16 @@ class SelfScatteringControllerMixin:
                 self._invalidate_self_static_structure_factor_result(reason=reason)
             except Exception:
                 pass
-
-    def _sync_self_static_structure_factor_export_prompt_visibility(self) -> None:
-        card = getattr(self, "self_static_structure_factor_export_prompt_card", None)
-        pane = getattr(self, "self_static_structure_factor_export_prompt", None)
-        if card is None or pane is None:
-            return
-        card.visible = bool(getattr(pane, "visible", False))
+        if hasattr(self, "_refresh_self_export_hovercard"):
+            try:
+                self._refresh_self_export_hovercard()
+            except Exception:
+                pass
+        if hasattr(self, "_refresh_self_export_button_states"):
+            try:
+                self._refresh_self_export_button_states()
+            except Exception:
+                pass
 
     def _invalidate_self_static_structure_factor_result(self, *, reason: str | None = None) -> None:
         self._self_static_structure_factor_last = None
@@ -2079,18 +2591,16 @@ class SelfScatteringControllerMixin:
                 self.self_static_structure_factor_summary_table.object = ""
             except Exception:
                 pass
-        if hasattr(self, "self_static_structure_factor_export_button"):
+        if hasattr(self, "_refresh_self_export_hovercard"):
             try:
-                self.self_static_structure_factor_export_button.disabled = True
+                self._refresh_self_export_hovercard()
             except Exception:
                 pass
-        if hasattr(self, "self_static_structure_factor_export_prompt"):
+        if hasattr(self, "_refresh_self_export_button_states"):
             try:
-                self.self_static_structure_factor_export_prompt.visible = False
-                self.self_static_structure_factor_export_prompt.object = ""
+                self._refresh_self_export_button_states()
             except Exception:
                 pass
-        self._sync_self_static_structure_factor_export_prompt_visibility()
 
     def _load_measurement_for_self_context(self, payload: dict[str, object]) -> object | None:
         if self.current_project_root is None:
@@ -2132,7 +2642,7 @@ class SelfScatteringControllerMixin:
         base_dir = par_path.parent if par_path.parent.exists() else self.current_project_root
 
         try:
-            from toscana.experiment.measurement import Measurement
+            from ntsa.experiment.measurement import Measurement
         except Exception:
             return None
         try:
@@ -2144,14 +2654,14 @@ class SelfScatteringControllerMixin:
     def _self_fit_model_function(self, model: str):
         model = self._normalize_self_fit_model(model)
         if model == self._SELF_FIT_MODEL_POLY:
-            from toscana.math.polynomials import polyQ4 as base_func
+            from ntsa.math.polynomials import polyQ4 as base_func
 
             return base_func, ["a0", "a1", "a2", "a3", "a4"]
         if model == self._SELF_FIT_MODEL_LORGAU:
-            from toscana.math.line_shapes import LorGau as base_func
+            from ntsa.math.line_shapes import LorGau as base_func
 
             return base_func, ["f0", "eta", "sigma", "gamma", "bckg"]
-        from toscana.models.scattering import vanaQdep as base_func
+        from ntsa.models.scattering import vanaQdep as base_func
 
         return base_func, ["a0", "a1", "a2", "A", "lowQ", "Q0", "dQ"]
 
@@ -2317,7 +2827,6 @@ class SelfScatteringControllerMixin:
             return
         pane = getattr(self, "self_static_structure_factor_plot_pane", None)
         table = getattr(self, "self_static_structure_factor_summary_table", None)
-        export_button = getattr(self, "self_static_structure_factor_export_button", None)
         if pane is None or table is None:
             return
 
@@ -2330,8 +2839,6 @@ class SelfScatteringControllerMixin:
                 stale=False,
                 reason="Select a context first.",
             )
-            if export_button is not None:
-                export_button.disabled = True
             pane.object = None
             return
 
@@ -2348,8 +2855,6 @@ class SelfScatteringControllerMixin:
                 stale=False,
                 reason="Run Fit first.",
             )
-            if export_button is not None:
-                export_button.disabled = True
             pane.object = None
             return
 
@@ -2373,17 +2878,6 @@ class SelfScatteringControllerMixin:
             stale=stale,
             reason=reason,
         )
-
-        can_export = False
-        if not stale and series is not None and measurement is not None and hasattr(measurement, "wavelength"):
-            try:
-                wl = float(getattr(measurement, "wavelength"))
-            except Exception:
-                wl = float("nan")
-            can_export = np.isfinite(wl) and wl > 0
-
-        if export_button is not None:
-            export_button.disabled = (not can_export) or bool(getattr(self, "operation_in_progress", False))
 
         if series is None or stale:
             pane.object = None
@@ -2424,324 +2918,8 @@ class SelfScatteringControllerMixin:
             pass
 
     def _refresh_self_static_structure_factor_button_states(self) -> None:
-        export_button = getattr(self, "self_static_structure_factor_export_button", None)
-        if export_button is None:
-            return
-        # Delegate to panel refresh (keeps logic in one place).
+        # Keep the plot/table in sync with the live fit cache.
         self._refresh_self_static_structure_factor_panel()
-
-        confirm = getattr(self, "self_static_structure_factor_export_confirm_button", None)
-        cancel = getattr(self, "self_static_structure_factor_export_cancel_button", None)
-        if confirm is not None:
-            confirm.disabled = bool(getattr(self, "operation_in_progress", False))
-        if cancel is not None:
-            cancel.disabled = bool(getattr(self, "operation_in_progress", False))
-
-    def _prompt_self_static_structure_factor_export(self, _event=None) -> None:
-        if self.current_project_root is None or self.current_project_state is None:
-            return
-        prompt = getattr(self, "self_static_structure_factor_export_prompt", None)
-        if prompt is None:
-            return
-        if bool(getattr(prompt, "visible", False)):
-            prompt.visible = False
-            self._sync_self_static_structure_factor_export_prompt_visibility()
-            return
-
-        fit_payload = self._self_static_structure_factor_current_fit_payload()
-        if fit_payload is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Run Fit first to export.")
-            return
-        if self._self_static_structure_factor_is_stale(fit_payload):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Fit is stale. Run Fit again before exporting.")
-            return
-
-        context_id = str(getattr(getattr(self, "self_context_select", None), "value", "") or "").strip()
-        if not context_id:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Select a context first.")
-            return
-
-        manifest_ref = self._selected_self_manifest_ref()
-        payload = load_context_manifest(self.current_project_root, manifest_ref) if manifest_ref else None
-        payload = payload if isinstance(payload, dict) else None
-        measurement = self._load_measurement_for_self_context(payload) if isinstance(payload, dict) else None
-        if measurement is None or not hasattr(measurement, "wavelength"):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Measurement/wavelength missing; cannot export angle data.")
-            return
-        try:
-            wl = float(getattr(measurement, "wavelength"))
-        except Exception:
-            wl = float("nan")
-        if not np.isfinite(wl) or wl <= 0:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Invalid wavelength; cannot export angle data.")
-            return
-
-        sample_title = None
-        try:
-            if hasattr(measurement, "Title"):
-                sample_title = str(getattr(measurement, "Title") or "").strip()
-        except Exception:
-            sample_title = None
-        if not sample_title and isinstance(payload, dict):
-            sample = payload.get("sample") if isinstance(payload.get("sample"), dict) else {}
-            if isinstance(sample.get("title"), str):
-                sample_title = sample.get("title")
-        stem = self._sanitize_export_filename_stem(str(sample_title or context_id))
-        filename_q = f"{stem}_SOQ.qdat"
-        filename_a = f"{stem}_SOQ.adat"
-
-        target_dir = self.current_project_root / "processed" / "self_scattering" / context_id
-        target_q = target_dir / filename_q
-        target_a = target_dir / filename_a
-        mirror_dir = self.current_project_root / "processed" / "qspdata"
-        mirror_q = mirror_dir / filename_q
-        mirror_a = mirror_dir / filename_a
-
-        rel_target_q = project_relpath(self.current_project_root, target_q)
-        rel_target_a = project_relpath(self.current_project_root, target_a)
-        rel_mirror_q = project_relpath(self.current_project_root, mirror_q)
-        rel_mirror_a = project_relpath(self.current_project_root, mirror_a)
-
-        lines = [
-            "Proceeding will write (or overwrite) Static Structure Factor exports:",
-            "",
-            f"Context: `{rel_target_q}` \n",
-            f"Context: `{rel_target_a}` \n",
-            f"QSPData: `{rel_mirror_q}` \n",
-            f"QSPData: `{rel_mirror_a}`",
-        ]
-        overwrite = target_q.exists() or target_a.exists() or mirror_q.exists() or mirror_a.exists()
-        prompt.alert_type = "warning" if overwrite else "secondary"
-        if overwrite:
-            lines.append("")
-            lines.append("Warning: one or more files already exist and will be overwritten.")
-        prompt.object = "\n".join(lines)
-        prompt.visible = True
-        self._sync_self_static_structure_factor_export_prompt_visibility()
-
-    def _cancel_self_static_structure_factor_export(self, _event=None) -> None:
-        if hasattr(self, "self_static_structure_factor_export_prompt"):
-            self.self_static_structure_factor_export_prompt.visible = False
-        self._sync_self_static_structure_factor_export_prompt_visibility()
-
-    def _confirm_self_static_structure_factor_export(self, _event=None) -> None:
-        self._perform_self_static_structure_factor_export()
-
-    def _perform_self_static_structure_factor_export(self) -> None:
-        if self.current_project_root is None or self.current_project_state is None:
-            return
-        if getattr(self, "operation_in_progress", False):
-            return
-
-        context_id = str(getattr(getattr(self, "self_context_select", None), "value", "") or "").strip()
-        if not context_id:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Select a context first.")
-            return
-
-        fit_payload = self._self_static_structure_factor_current_fit_payload()
-        if fit_payload is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Run Fit first to export.")
-            return
-        if self._self_static_structure_factor_is_stale(fit_payload):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Fit is stale. Run Fit again before exporting.")
-            return
-
-        manifest_ref = self._selected_self_manifest_ref()
-        payload = load_context_manifest(self.current_project_root, manifest_ref) if manifest_ref else None
-        payload = payload if isinstance(payload, dict) else None
-        measurement = self._load_measurement_for_self_context(payload) if isinstance(payload, dict) else None
-        if measurement is None or not hasattr(measurement, "wavelength"):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Measurement/wavelength missing; cannot export angle data.")
-            return
-        try:
-            wl = float(getattr(measurement, "wavelength"))
-        except Exception:
-            wl = float("nan")
-        if not np.isfinite(wl) or wl <= 0:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Invalid wavelength; cannot export angle data.")
-            return
-
-        series = self._compute_self_static_structure_factor_series()
-        if series is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Static Structure Factor not ready. Check prerequisites.")
-            return
-
-        q = series.get("q")
-        soq = series.get("soq")
-        soq_err = series.get("soq_err")
-        if q is None or soq is None or soq_err is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("No S(Q) series available to export.")
-            return
-
-        sample_title = None
-        try:
-            if hasattr(measurement, "Title"):
-                sample_title = str(getattr(measurement, "Title") or "").strip()
-        except Exception:
-            sample_title = None
-        if not sample_title and isinstance(payload, dict):
-            sample = payload.get("sample") if isinstance(payload.get("sample"), dict) else {}
-            if isinstance(sample.get("title"), str):
-                sample_title = sample.get("title")
-        stem = self._sanitize_export_filename_stem(str(sample_title or context_id))
-        filename_q = f"{stem}_SOQ.qdat"
-        filename_a = f"{stem}_SOQ.adat"
-
-        # Record in run history (best-effort).
-        run_record = None
-        try:
-            from toscana_gui.persistence import OutputPaths, RunRecord
-
-            run_id = None
-            if hasattr(self, "_create_run_id"):
-                run_id = str(self._create_run_id())
-            run_record = RunRecord(
-                run_id=run_id or f"self-soq-{now_iso()}",
-                workflow="self_static_structure_factor_export",
-                status="running",
-                started_at=now_iso(),
-                summary=f"Exporting Static Structure Factor for context `{context_id}`",
-                output_paths=OutputPaths(),
-            )
-            if hasattr(self.current_project_state, "runs") and isinstance(self.current_project_state.runs, list):
-                self.current_project_state.runs.append(run_record)
-                if hasattr(self, "_persist_current_project_state"):
-                    self._persist_current_project_state()
-        except Exception:
-            run_record = None
-
-        self.operation_in_progress = True
-        try:
-            if hasattr(self, "_refresh_interaction_states"):
-                self._refresh_interaction_states()
-
-            target_dir = self.current_project_root / "processed" / "self_scattering" / context_id
-            mirror_dir = self.current_project_root / "processed" / "qspdata"
-            target_dir.mkdir(parents=True, exist_ok=True)
-            mirror_dir.mkdir(parents=True, exist_ok=True)
-
-            target_q = target_dir / filename_q
-            target_a = target_dir / filename_a
-            mirror_q = mirror_dir / filename_q
-            mirror_a = mirror_dir / filename_a
-
-            from toscana.io.saving import saveFile_xye
-            from toscana.physics.conversions import q2ang
-
-            timestamp = now_iso()
-            fit_model = self._normalize_self_fit_model(fit_payload.get("model"))
-
-            artifacts = payload.get("artifacts") if isinstance(payload, dict) else {}
-            dsdo_ref = artifacts.get("sample_dsdo_qdat") if isinstance(artifacts, dict) else None
-            dsdo_rel = ""
-            if isinstance(dsdo_ref, str) and dsdo_ref.strip():
-                try:
-                    dsdo_path = resolve_project_path(self.current_project_root, dsdo_ref)
-                    dsdo_rel = project_relpath(self.current_project_root, dsdo_path)
-                except Exception:
-                    dsdo_rel = dsdo_ref
-
-            popt = fit_payload.get("popt_full") if isinstance(fit_payload.get("popt_full"), dict) else {}
-            try:
-                _base, keys = self._self_fit_model_function(fit_model)
-            except Exception:
-                keys = []
-            params_compact = ", ".join([f"{k}={popt.get(k)}" for k in keys if k in popt])
-
-            heading_common = [
-                f"timestamp: {timestamp}",
-                f"context_id: {context_id}",
-                f"sample_title: {sample_title or ''}",
-                f"fit_model: {fit_model}",
-                f"fit_params: {params_compact}",
-                f"source_sample_dsdo_qdat: {dsdo_rel}",
-                "Static structure factor",
-            ]
-            heading_q = [*heading_common, " Q (1/Å)         Intensity              Error"]
-            heading_a = [*heading_common, " A (deg)         Intensity              Error"]
-
-            q_arr = np.asarray(q, dtype=float)
-            y_arr = np.asarray(soq, dtype=float)
-            e_arr = np.asarray(soq_err, dtype=float)
-            ang_arr = np.asarray(q2ang(q_arr, wl), dtype=float)
-
-            saveFile_xye(str(target_q), q_arr, y_arr, e_arr, heading_q)
-            saveFile_xye(str(target_a), ang_arr, y_arr, e_arr, heading_a)
-            saveFile_xye(str(mirror_q), q_arr, y_arr, e_arr, heading_q)
-            saveFile_xye(str(mirror_a), ang_arr, y_arr, e_arr, heading_a)
-
-            # Persist artifact references.
-            if isinstance(payload, dict):
-                artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
-                artifacts["static_structure_factor_qdat"] = project_relpath(self.current_project_root, target_q)
-                artifacts["static_structure_factor_adat"] = project_relpath(self.current_project_root, target_a)
-                artifacts["static_structure_factor_qdat_qspdata"] = project_relpath(self.current_project_root, mirror_q)
-                artifacts["static_structure_factor_adat_qspdata"] = project_relpath(self.current_project_root, mirror_a)
-                payload["artifacts"] = artifacts
-                try:
-                    write_context_manifest(self.current_project_root, context_id=context_id, payload=payload)
-                except Exception:
-                    pass
-
-            if run_record is not None:
-                try:
-                    run_record.status = "succeeded"
-                    run_record.finished_at = now_iso()
-                    run_record.summary = f"Exported `{filename_q}` / `{filename_a}`"
-                    run_record.output_paths.generated_files = [
-                        project_relpath(self.current_project_root, target_q),
-                        project_relpath(self.current_project_root, target_a),
-                        project_relpath(self.current_project_root, mirror_q),
-                        project_relpath(self.current_project_root, mirror_a),
-                    ]
-                    if hasattr(self.current_project_state, "project") and hasattr(self.current_project_state.project, "updated_at"):
-                        self.current_project_state.project.updated_at = now_iso()  # type: ignore[assignment]
-                    if hasattr(self, "_persist_current_project_state"):
-                        self._persist_current_project_state()
-                except Exception:
-                    pass
-
-            if hasattr(self, "_show_success_toast"):
-                self._show_success_toast("Exported Static Structure Factor files.")
-            if hasattr(self, "self_static_structure_factor_export_prompt"):
-                self.self_static_structure_factor_export_prompt.visible = False
-                self._sync_self_static_structure_factor_export_prompt_visibility()
-        except Exception as exc:
-            if hasattr(self, "_show_error_toast"):
-                self._show_error_toast(f"Export failed: {exc}")
-            if run_record is not None:
-                try:
-                    run_record.status = "failed"
-                    run_record.finished_at = now_iso()
-                    run_record.summary = f"Export failed: {exc}"
-                    if hasattr(self, "_persist_current_project_state"):
-                        self._persist_current_project_state()
-                except Exception:
-                    pass
-        finally:
-            self.operation_in_progress = False
-            if hasattr(self, "_refresh_interaction_states"):
-                try:
-                    self._refresh_interaction_states()
-                except Exception:
-                    pass
-            if hasattr(self, "_refresh_self_static_structure_factor_button_states"):
-                try:
-                    self._refresh_self_static_structure_factor_button_states()
-                except Exception:
-                    pass
 
     def _self_fit_selection_snapshot(self) -> dict[str, object]:
         # Best-effort: mirror what is persisted under decisions.self_scattering.data_selection.
@@ -2796,7 +2974,7 @@ class SelfScatteringControllerMixin:
                 corrected = fit.get("corrected")
             if not isinstance(corrected, np.ndarray) and isinstance(fit.get("fit"), dict):
                 try:
-                    from toscana.models.scattering import self024
+                    from ntsa.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -3048,7 +3226,7 @@ class SelfScatteringControllerMixin:
                 corrected = fit.get("corrected")
             if not isinstance(corrected, np.ndarray) and isinstance(fit.get("fit"), dict):
                 try:
-                    from toscana.models.scattering import self024
+                    from ntsa.models.scattering import self024
 
                     fr = fit["fit"]
                     q0 = float(fr.get("q0"))
@@ -3079,20 +3257,6 @@ class SelfScatteringControllerMixin:
         run_button = getattr(self, "self_fit_params_run_button", None)
         if run_button is not None:
             run_button.disabled = (not can_suggest) or op_in_progress
-
-        export_button = getattr(self, "self_fit_params_export_button", None)
-        if export_button is not None:
-            last_fit = self._self_fit_current_last_fit_payload()
-            can_export = bool(can_suggest) and last_fit is not None and (not self._self_fit_is_last_fit_stale(last_fit))
-            export_button.disabled = (not can_export) or op_in_progress
-
-        export_confirm = getattr(self, "self_fit_export_confirm_button", None)
-        if export_confirm is not None:
-            export_confirm.disabled = op_in_progress
-
-        export_cancel = getattr(self, "self_fit_export_cancel_button", None)
-        if export_cancel is not None:
-            export_cancel.disabled = op_in_progress
 
     def _render_self_fit_result_table(self, fit_payload: dict[str, object], *, stale: bool) -> None:
         pane = getattr(self, "self_fit_result_table", None)
@@ -3288,11 +3452,11 @@ class SelfScatteringControllerMixin:
 
         try:
             if model == self._SELF_FIT_MODEL_POLY:
-                from toscana.math.polynomials import polyQ4 as base_func
+                from ntsa.math.polynomials import polyQ4 as base_func
             elif model == self._SELF_FIT_MODEL_LORGAU:
-                from toscana.math.line_shapes import LorGau as base_func
+                from ntsa.math.line_shapes import LorGau as base_func
             else:
-                from toscana.models.scattering import vanaQdep as base_func
+                from ntsa.models.scattering import vanaQdep as base_func
         except Exception:
             return None
 
@@ -3517,11 +3681,11 @@ class SelfScatteringControllerMixin:
             # Resolve model function.
             try:
                 if model == self._SELF_FIT_MODEL_POLY:
-                    from toscana.math.polynomials import polyQ4 as base_func
+                    from ntsa.math.polynomials import polyQ4 as base_func
                 elif model == self._SELF_FIT_MODEL_LORGAU:
-                    from toscana.math.line_shapes import LorGau as base_func
+                    from ntsa.math.line_shapes import LorGau as base_func
                 else:
-                    from toscana.models.scattering import vanaQdep as base_func
+                    from ntsa.models.scattering import vanaQdep as base_func
             except Exception as exc:
                 self._self_fit_set_alert(f"Could not import model function: {exc}", alert_type="danger")
                 return
@@ -3695,178 +3859,3 @@ class SelfScatteringControllerMixin:
             return None
         payload = cached.get("payload")
         return payload if isinstance(payload, dict) else None
-
-    def _prompt_self_fit_export(self, _event=None) -> None:
-        if self.current_project_root is None or self.current_project_state is None:
-            return
-        prompt = getattr(self, "self_fit_export_prompt", None)
-        if prompt is None:
-            return
-        if bool(getattr(prompt, "visible", False)):
-            prompt.visible = False
-            self._sync_self_fit_export_prompt_visibility()
-            return
-
-        fit_payload = self._self_fit_current_last_fit_payload()
-        if fit_payload is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Run a fit first to export.")
-            return
-        if self._self_fit_is_last_fit_stale(fit_payload):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Fit is stale. Run Fit again before exporting.")
-            return
-
-        context_id = str(getattr(getattr(self, "self_context_select", None), "value", "") or "").strip()
-        if not context_id:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Select a context first.")
-            return
-
-        target = self.current_project_root / "processed" / "self_scattering" / context_id / "self_fit.qdat"
-        rel_target = project_relpath(self.current_project_root, target)
-        lines = [
-            f"Export target: `{rel_target}`",
-            "",
-            "Proceeding will write (or overwrite) `self_fit.qdat` for the selected context.\n",
-        ]
-        if target.exists():
-            lines.append("Warning: the file already exists and will be overwritten.")
-            prompt.alert_type = "warning"
-        else:
-            prompt.alert_type = "secondary"
-        prompt.object = "\n".join(lines)
-        prompt.visible = True
-        self._sync_self_fit_export_prompt_visibility()
-
-    def _cancel_self_fit_export(self, _event=None) -> None:
-        if hasattr(self, "self_fit_export_prompt"):
-            self.self_fit_export_prompt.visible = False
-        self._sync_self_fit_export_prompt_visibility()
-
-    def _confirm_self_fit_export(self, _event=None) -> None:
-        self._perform_self_fit_export()
-
-    def _perform_self_fit_export(self) -> None:
-        if self.current_project_root is None or self.current_project_state is None:
-            return
-        if getattr(self, "operation_in_progress", False):
-            return
-
-        fit_payload = self._self_fit_current_last_fit_payload()
-        if fit_payload is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Run a fit first to export.")
-            return
-        if self._self_fit_is_last_fit_stale(fit_payload):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Fit is stale. Run Fit again before exporting.")
-            return
-
-        context_id = str(getattr(getattr(self, "self_context_select", None), "value", "") or "").strip()
-        if not context_id:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Select a context first.")
-            return
-
-        series = fit_payload.get("series") if isinstance(fit_payload.get("series"), dict) else {}
-        q = series.get("q")
-        y = series.get("y")
-        y_fit = series.get("y_fit")
-        if q is None or y is None or y_fit is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("No fit series available to export. Run Fit again.")
-            return
-
-        # Record in run history (best-effort).
-        run_record = None
-        try:
-            from toscana_gui.persistence import OutputPaths, RunRecord
-
-            run_id = None
-            if hasattr(self, "_create_run_id"):
-                run_id = str(self._create_run_id())
-            run_record = RunRecord(
-                run_id=run_id or f"self-fit-{now_iso()}",
-                workflow="self_fit_model_export",
-                status="running",
-                started_at=now_iso(),
-                summary=f"Exporting Self fit for context `{context_id}`",
-                output_paths=OutputPaths(),
-            )
-            if hasattr(self.current_project_state, "runs") and isinstance(self.current_project_state.runs, list):
-                self.current_project_state.runs.append(run_record)
-                if hasattr(self, "_persist_current_project_state"):
-                    self._persist_current_project_state()
-        except Exception:
-            run_record = None
-
-        self.operation_in_progress = True
-        try:
-            if hasattr(self, "_refresh_interaction_states"):
-                self._refresh_interaction_states()
-
-            target_dir = self.current_project_root / "processed" / "self_scattering" / context_id
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target = target_dir / "self_fit.qdat"
-
-            timestamp = now_iso()
-            model = self._normalize_self_fit_model(fit_payload.get("model"))
-            header = [
-                f"# timestamp: {timestamp}",
-                f"# model: {model}",
-                "# Q data fit",
-            ]
-            lines = [*header]
-            for qv, yv, yfv in zip(np.asarray(q, dtype=float), np.asarray(y, dtype=float), np.asarray(y_fit, dtype=float), strict=False):
-                lines.append(f"{float(qv):.8g} {float(yv):.8g} {float(yfv):.8g}")
-            target.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-            manifest_ref = self._selected_self_manifest_ref()
-            payload = load_context_manifest(self.current_project_root, manifest_ref) if manifest_ref else None
-            if isinstance(payload, dict):
-                artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
-                artifacts["self_fit_qdat"] = project_relpath(self.current_project_root, target)
-                payload["artifacts"] = artifacts
-                try:
-                    write_context_manifest(self.current_project_root, context_id=context_id, payload=payload)
-                except Exception:
-                    pass
-
-            if run_record is not None:
-                try:
-                    run_record.status = "succeeded"
-                    run_record.finished_at = now_iso()
-                    run_record.summary = f"Exported `{project_relpath(self.current_project_root, target)}`"
-                    run_record.output_paths.generated_files = [project_relpath(self.current_project_root, target)]
-                    if hasattr(self.current_project_state, "project") and hasattr(self.current_project_state.project, "updated_at"):
-                        self.current_project_state.project.updated_at = now_iso()  # type: ignore[assignment]
-                    if hasattr(self, "_persist_current_project_state"):
-                        self._persist_current_project_state()
-                except Exception:
-                    pass
-
-            if hasattr(self, "_show_success_toast"):
-                self._show_success_toast("Exported self fit qdat.")
-            if hasattr(self, "self_fit_export_prompt"):
-                self.self_fit_export_prompt.visible = False
-                self._sync_self_fit_export_prompt_visibility()
-        except Exception as exc:
-            if hasattr(self, "_show_error_toast"):
-                self._show_error_toast(f"Export failed: {exc}")
-            if run_record is not None:
-                try:
-                    run_record.status = "failed"
-                    run_record.finished_at = now_iso()
-                    run_record.summary = f"Export failed: {exc}"
-                    if hasattr(self, "_persist_current_project_state"):
-                        self._persist_current_project_state()
-                except Exception:
-                    pass
-        finally:
-            self.operation_in_progress = False
-            if hasattr(self, "_refresh_interaction_states"):
-                try:
-                    self._refresh_interaction_states()
-                except Exception:
-                    pass

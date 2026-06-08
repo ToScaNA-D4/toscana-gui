@@ -13,7 +13,7 @@ import numpy as np
 
 import panel as pn
 
-from toscana.io.loading import read_xye
+from ntsa.io.loading import read_xye
 
 from toscana_gui.contexts import (
     context_manifest_relpath,
@@ -311,7 +311,7 @@ class NormalizationControllerMixin:
         Clear in-memory (non-persisted) normalization runtime state.
 
         This prevents cached fit/export results and Plotly view state from
-        leaking across projects when switching between `toscana-project.json`
+        leaking across projects when switching between `ntsa-project.json`
         files within the same running Panel session.
         """
 
@@ -921,7 +921,7 @@ class NormalizationControllerMixin:
         base_dir = par_path.parent if par_path.parent.exists() else self.current_project_root
 
         try:
-            from toscana.experiment.measurement import Measurement
+            from ntsa.experiment.measurement import Measurement
         except Exception:
             return None
         try:
@@ -1013,9 +1013,9 @@ class NormalizationControllerMixin:
         # Compute the normalization factor from the Measurement geometry / densities.
         from math import pi
 
-        from toscana.isotopes.core import elemento
-        from toscana.physics.geometry import getCylVolume
-        from toscana.physics.properties import getAtomicDensity
+        from ntsa.isotopes.core import elemento
+        from ntsa.physics.geometry import getCylVolume
+        from ntsa.physics.properties import getAtomicDensity
 
         outer_diam = float(getattr(measurement, "OuterDiam", 0.0) or 0.0)
         beam_height = float(getattr(measurement, "beamHeight", 0.0) or 0.0)
@@ -1130,6 +1130,10 @@ class NormalizationControllerMixin:
 
         if hasattr(self, "_refresh_normalization_sample_norm_button_states"):
             self._refresh_normalization_sample_norm_button_states()
+        if hasattr(self, "_refresh_normalization_export_button_states"):
+            self._refresh_normalization_export_button_states()
+        if hasattr(self, "_refresh_normalization_export_hovercard"):
+            self._refresh_normalization_export_hovercard()
 
     def _persist_normalization_fit_data_selection_to_context(self) -> None:
         if self.current_project_root is None or self.current_project_state is None:
@@ -1388,7 +1392,7 @@ class NormalizationControllerMixin:
                     q_sorted = q_all_f[order]
                     y_sorted = y_all_f[order]
 
-                    from toscana.models.scattering import vanaQdep
+                    from ntsa.models.scattering import vanaQdep
 
                     popt_arr = np.asarray(self._normalization_last_fit.get("popt"), dtype=float)
                     norSelf = vanaQdep(q_sorted, *popt_arr)
@@ -1631,7 +1635,7 @@ class NormalizationControllerMixin:
             if popt_arr.size != 7 or not np.all(np.isfinite(popt_arr)):
                 raise RuntimeError("Fit parameters are invalid; rerun the fit.")
 
-            from toscana.models.scattering import vanaQdep
+            from ntsa.models.scattering import vanaQdep
 
             norSelf = vanaQdep(q_sorted, *popt_arr)
             # Pure sigmoid uses polynomial = 1.
@@ -1733,83 +1737,186 @@ class NormalizationControllerMixin:
             return None
         return cached  # type: ignore[return-value]
 
-    def _refresh_normalization_sample_norm_button_states(self) -> None:
-        if not hasattr(self, "normalization_sample_norm_export_button"):
-            return
-        can_export = self._normalization_current_last_sample_norm() is not None
-        self.normalization_sample_norm_export_button.disabled = not bool(can_export) or bool(
-            getattr(self, "operation_in_progress", False)
-        )
-        if hasattr(self, "normalization_sample_norm_export_confirm_button"):
-            self.normalization_sample_norm_export_confirm_button.disabled = bool(getattr(self, "operation_in_progress", False))
-        if hasattr(self, "normalization_sample_norm_export_cancel_button"):
-            self.normalization_sample_norm_export_cancel_button.disabled = bool(getattr(self, "operation_in_progress", False))
+    def _resolve_normalization_export_dir(self) -> Path | None:
+        if self.current_project_root is None:
+            return None
+        raw = str(getattr(getattr(self, "normalization_export_folder_input", None), "value", "") or "").strip()
+        if not raw:
+            raw = "processed/normalization/"
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = (self.current_project_root / candidate).resolve(strict=False)
+        return candidate
 
-    def _sync_normalization_sample_norm_export_prompt_visibility(self) -> None:
-        if not hasattr(self, "normalization_sample_norm_export_prompt_card"):
-            return
-        visible = bool(getattr(getattr(self, "normalization_sample_norm_export_prompt", None), "visible", False))
-        self.normalization_sample_norm_export_prompt_card.visible = visible
+    def _normalization_export_snapshot(self) -> dict[str, object]:
+        snapshot: dict[str, object] = {
+            "ready": False,
+            "context_id": None,
+            "sample_title": None,
+            "filename": None,
+            "export_root": None,
+            "user_target": None,
+            "canonical_target": None,
+            "qspdata_target": None,
+            "reason": None,
+        }
 
-    def _prompt_normalization_sample_norm_export(self, _event=None) -> None:
         if self.current_project_root is None or self.current_project_state is None:
-            return
-        if not hasattr(self, "normalization_sample_norm_export_prompt"):
-            return
-        if bool(getattr(self.normalization_sample_norm_export_prompt, "visible", False)):
-            self.normalization_sample_norm_export_prompt.visible = False
-            self._sync_normalization_sample_norm_export_prompt_visibility()
-            return
-
-        cached = self._normalization_current_last_sample_norm()
-        if cached is None:
-            self._show_warning_toast("Compute sample normalization first (fix prerequisites above).")
-            return
+            snapshot["reason"] = "Open a project first."
+            return snapshot
+        if self._normalization_current_last_sample_norm() is None:
+            snapshot["reason"] = "Compute sample normalization first."
+            return snapshot
 
         context_id = str(getattr(getattr(self, "normalization_context_select", None), "value", "") or "").strip()
-        payload = self._load_normalization_context_payload()
-        sample_title = None
-        if isinstance(payload, dict):
-            sample = payload.get("sample") if isinstance(payload.get("sample"), dict) else {}
-            if isinstance(sample.get("title"), str):
-                sample_title = sample.get("title")
+        if not context_id:
+            snapshot["reason"] = "Select a background context first."
+            return snapshot
+        snapshot["context_id"] = context_id
 
-        # Determine deterministic filenames/targets.
+        payload = self._load_normalization_context_payload()
+        if not isinstance(payload, dict):
+            snapshot["reason"] = "Selected context has no manifest payload."
+            return snapshot
+
+        sample_title = None
+        sample = payload.get("sample") if isinstance(payload.get("sample"), dict) else {}
+        if isinstance(sample.get("title"), str):
+            sample_title = sample.get("title")
+        snapshot["sample_title"] = sample_title
+
         base = self._sanitize_export_filename_stem(str(sample_title or "sample"))
         if base.lower().endswith("_sub"):
             base = base[:-4] or base
         filename = f"{base}_dsdo.qdat"
-        target_norm_dir = self.current_project_root / "processed" / "normalization" / context_id
-        target_norm = target_norm_dir / filename
-        target_qspdata = (self.current_project_root / "processed" / "qspdata") / filename
+        snapshot["filename"] = filename
 
-        rel_norm = project_relpath(self.current_project_root, target_norm)
-        rel_qspdata = project_relpath(self.current_project_root, target_qspdata)
+        export_root = self._resolve_normalization_export_dir()
+        snapshot["export_root"] = str(export_root) if export_root is not None else None
+        if export_root is None:
+            snapshot["reason"] = "Choose an export folder."
+            return snapshot
+
+        user_target_dir = export_root / context_id
+        canonical_target_dir = self.current_project_root / "processed" / "normalization" / context_id
+        qspdata_target_dir = ensure_qspdata_dir(self.current_project_root)
+
+        snapshot["user_target"] = str(user_target_dir / filename)
+        snapshot["canonical_target"] = str(canonical_target_dir / filename)
+        snapshot["qspdata_target"] = str(qspdata_target_dir / filename)
+        snapshot["ready"] = True
+        snapshot["reason"] = None
+        return snapshot
+
+    def _refresh_normalization_export_hovercard(self) -> None:
+        if not hasattr(self, "normalization_export_info_hover"):
+            return
+
+        snap = self._normalization_export_snapshot()
+        ready = bool(snap.get("ready", False))
+        status = "Ready" if ready else "Not ready"
+        reason = html_escape(str(snap.get("reason") or ""))
+
+        body_lines = [f"<div><strong>Status:</strong> {html_escape(status)}</div>"]
+        if ready:
+            context_id = html_escape(str(snap.get("context_id") or ""))
+            export_root = html_escape(str(snap.get("export_root") or ""))
+            user_target = html_escape(str(snap.get("user_target") or ""))
+            canonical_target = html_escape(str(snap.get("canonical_target") or ""))
+            qspdata_target = html_escape(str(snap.get("qspdata_target") or ""))
+            if context_id:
+                body_lines.append(f"<div><strong>Context:</strong> {context_id}</div>")
+            if export_root:
+                body_lines.append(f"<div><strong>Export root:</strong> {export_root}</div>")
+            if user_target and user_target != canonical_target:
+                body_lines.append(f"<div><strong>User export:</strong> {user_target}</div>")
+            if canonical_target:
+                body_lines.append(f"<div><strong>Canonical export:</strong> {canonical_target}</div>")
+            if qspdata_target:
+                body_lines.append(f"<div><strong>QSPData mirror:</strong> {qspdata_target}</div>")
+        elif reason:
+            body_lines.append(f"<div style=\"margin-top: 8px;\"><em>{reason}</em></div>")
+
+        self.normalization_export_info_hover.value = (
+            "<div style=\"max-width: 320px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; word-break: break-word;\">"
+            + "\n".join(body_lines)
+            + "</div>"
+        )
+
+    def _refresh_normalization_export_button_states(self) -> None:
+        if not hasattr(self, "normalization_export_button"):
+            return
+        can_export = self._normalization_export_snapshot().get("ready", False)
+        disabled = bool(getattr(self, "operation_in_progress", False))
+        self.normalization_export_button.disabled = disabled or not bool(can_export)
+        if hasattr(self, "normalization_export_confirm_button"):
+            self.normalization_export_confirm_button.disabled = disabled
+        if hasattr(self, "normalization_export_cancel_button"):
+            self.normalization_export_cancel_button.disabled = disabled
+
+    def _sync_normalization_export_prompt_visibility(self) -> None:
+        if not hasattr(self, "normalization_export_prompt_card"):
+            return
+        visible = bool(getattr(getattr(self, "normalization_export_prompt", None), "visible", False))
+        self.normalization_export_prompt_card.visible = visible
+
+    def _on_normalization_export_folder_change(self, event) -> None:
+        if getattr(self, "_suspend_normalization_events", False) or self.current_project_state is None:
+            return
+        if event.new == event.old:
+            return
+        if hasattr(self, "normalization_export_prompt"):
+            self.normalization_export_prompt.visible = False
+        self._sync_normalization_export_prompt_visibility()
+        self._refresh_normalization_export_hovercard()
+        self._refresh_normalization_export_button_states()
+
+    def _prompt_normalization_export(self, _event=None) -> None:
+        if self.operation_in_progress:
+            self._show_workspace_blocked_message()
+            return
+        if self.current_project_root is None or self.current_project_state is None:
+            self._show_warning_toast("Open a project first.")
+            return
+        if not hasattr(self, "normalization_export_prompt"):
+            return
+        if bool(getattr(self.normalization_export_prompt, "visible", False)):
+            self._cancel_normalization_export()
+            return
+
+        snap = self._normalization_export_snapshot()
+        if not snap.get("ready", False):
+            self._show_warning_toast(str(snap.get("reason") or "Export is not ready yet."))
+            return
+
+        user_target = Path(str(snap["user_target"]))
+        canonical_target = Path(str(snap["canonical_target"]))
+        qspdata_target = Path(str(snap["qspdata_target"]))
         lines = [
-            "Proceeding will write (or overwrite) normalized sample qdat files:",
+            "Proceeding will write normalized sample qdat files to:",
             "",
-            f"Normalization: `{rel_norm}` \n",
-            f"QSPData: `{rel_qspdata}`",
+            f"User export: `{project_relpath(self.current_project_root, user_target)}`",
+            f"Canonical export: `{project_relpath(self.current_project_root, canonical_target)}`",
+            f"QSPData mirror: `{project_relpath(self.current_project_root, qspdata_target)}`",
         ]
-
-        overwrite = target_norm.exists() or target_qspdata.exists()
-        self.normalization_sample_norm_export_prompt.alert_type = "warning" if overwrite else "secondary"
-        if overwrite:
+        overwrite_targets = [str(p) for p in (user_target, canonical_target, qspdata_target) if p.exists()]
+        self.normalization_export_prompt.alert_type = "warning" if overwrite_targets else "secondary"
+        if overwrite_targets:
             lines.append("")
             lines.append("Warning: one or more targets already exist and will be overwritten.")
-        self.normalization_sample_norm_export_prompt.object = "\n".join(lines)
-        self.normalization_sample_norm_export_prompt.visible = True
-        self._sync_normalization_sample_norm_export_prompt_visibility()
+        self.normalization_export_prompt.object = "\n".join(lines)
+        self.normalization_export_prompt.visible = True
+        self._sync_normalization_export_prompt_visibility()
 
-    def _cancel_normalization_sample_norm_export(self, _event=None) -> None:
-        if hasattr(self, "normalization_sample_norm_export_prompt"):
-            self.normalization_sample_norm_export_prompt.visible = False
-        self._sync_normalization_sample_norm_export_prompt_visibility()
+    def _cancel_normalization_export(self, _event=None) -> None:
+        if hasattr(self, "normalization_export_prompt"):
+            self.normalization_export_prompt.visible = False
+        self._sync_normalization_export_prompt_visibility()
 
-    def _confirm_normalization_sample_norm_export(self, _event=None) -> None:
-        self._perform_normalization_sample_norm_export()
+    def _confirm_normalization_export(self, _event=None) -> None:
+        self._perform_normalization_export()
 
-    def _perform_normalization_sample_norm_export(self) -> None:
+    def _perform_normalization_export(self) -> None:
         if self.current_project_root is None or self.current_project_state is None:
             return
         cached = self._normalization_current_last_sample_norm()
@@ -1837,14 +1944,21 @@ class NormalizationControllerMixin:
             base = base[:-4] or base
         filename = f"{base}_dsdo.qdat"
 
-        target_norm_dir = self.current_project_root / "processed" / "normalization" / context_id
-        target_norm_dir.mkdir(parents=True, exist_ok=True)
-        target_norm = target_norm_dir / filename
-        target_qspdata_dir = self.current_project_root / "processed" / "qspdata"
-        target_qspdata_dir.mkdir(parents=True, exist_ok=True)
-        target_qspdata = target_qspdata_dir / filename
+        export_root = self._resolve_normalization_export_dir()
+        if export_root is None:
+            self._show_warning_toast("Choose an export folder.")
+            return
 
-        # Record in run history (best-effort).
+        user_target_dir = export_root / context_id
+        canonical_target_dir = self.current_project_root / "processed" / "normalization" / context_id
+        user_target_dir.mkdir(parents=True, exist_ok=True)
+        canonical_target_dir.mkdir(parents=True, exist_ok=True)
+        qspdata_target_dir = ensure_qspdata_dir(self.current_project_root)
+
+        user_target = user_target_dir / filename
+        canonical_target = canonical_target_dir / filename
+        qspdata_target = qspdata_target_dir / filename
+
         run_record = None
         try:
             from toscana_gui.persistence import OutputPaths, RunRecord
@@ -1866,16 +1980,16 @@ class NormalizationControllerMixin:
                 workflow_data={
                     "context_id": context_id,
                     "targets": {
-                        "normalization": project_relpath(self.current_project_root, target_norm),
-                        "qspdata": project_relpath(self.current_project_root, target_qspdata),
+                        "user_export": project_relpath(self.current_project_root, user_target),
+                        "normalization": project_relpath(self.current_project_root, canonical_target),
+                        "qspdata": project_relpath(self.current_project_root, qspdata_target),
                     },
                 },
                 output_paths=OutputPaths(generated_files=[]),
             )
             self.current_project_state.runs.append(run_record)
             self.current_project_state.project.updated_at = now_iso()
-            if hasattr(self, "_persist_current_project_state"):
-                self._persist_current_project_state()
+            self._persist_current_project_state()
         except Exception:
             run_record = None
 
@@ -1886,30 +2000,28 @@ class NormalizationControllerMixin:
             q = np.asarray(series.get("q"), dtype=float)
             dsdo_y = np.asarray(series.get("dsdo_y"), dtype=float)
             dsdo_e = np.asarray(series.get("dsdo_e"), dtype=float)
-
             if q.size == 0 or dsdo_y.size == 0:
                 raise RuntimeError("No normalized sample data is available to export.")
             if dsdo_e.shape != dsdo_y.shape:
                 dsdo_e = np.zeros_like(dsdo_y, dtype=float)
 
-            # Build qdat lines.
             header = [
                 f"# timestamp: {now_iso()}",
                 "# Q dsdo error",
             ]
-            lines = [*header]
+            text_lines = [*header]
             for qv, yv, ev in zip(q, dsdo_y, dsdo_e, strict=False):
-                lines.append(f"{float(qv):.8g} {float(yv):.8g} {float(ev):.8g}")
-            text = "\n".join(lines) + "\n"
+                text_lines.append(f"{float(qv):.8g} {float(yv):.8g} {float(ev):.8g}")
+            text = "\n".join(text_lines) + "\n"
 
-            target_norm.write_text(text, encoding="utf-8")
-            target_qspdata.write_text(text, encoding="utf-8")
+            user_target.write_text(text, encoding="utf-8")
+            canonical_target.write_text(text, encoding="utf-8")
+            qspdata_target.write_text(text, encoding="utf-8")
 
-            # Update manifest artifacts.
             manifest_written = None
             artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
-            artifacts["sample_dsdo_qdat"] = project_relpath(self.current_project_root, target_norm)
-            artifacts["sample_dsdo_qdat_qspdata"] = project_relpath(self.current_project_root, target_qspdata)
+            artifacts["sample_dsdo_qdat"] = project_relpath(self.current_project_root, canonical_target)
+            artifacts["sample_dsdo_qdat_qspdata"] = project_relpath(self.current_project_root, qspdata_target)
             payload["artifacts"] = artifacts
             try:
                 manifest_written = write_context_manifest(self.current_project_root, context_id=context_id, payload=payload)
@@ -1922,39 +2034,37 @@ class NormalizationControllerMixin:
                     run_record.finished_at = now_iso()
                     run_record.summary = f"Exported `{filename}`"
                     generated = [
-                        project_relpath(self.current_project_root, target_norm),
-                        project_relpath(self.current_project_root, target_qspdata),
+                        project_relpath(self.current_project_root, user_target),
+                        project_relpath(self.current_project_root, canonical_target),
+                        project_relpath(self.current_project_root, qspdata_target),
                     ]
                     if isinstance(manifest_written, Path):
                         generated.append(project_relpath(self.current_project_root, manifest_written))
                     run_record.output_paths.generated_files = generated
                     self.current_project_state.project.updated_at = now_iso()
-                    if hasattr(self, "_persist_current_project_state"):
-                        self._persist_current_project_state()
+                    self._persist_current_project_state()
                 except Exception:
                     pass
 
             self._show_success_toast("Exported normalized sample qdat.")
-            if hasattr(self, "normalization_sample_norm_export_prompt"):
-                self.normalization_sample_norm_export_prompt.visible = False
+            if hasattr(self, "normalization_export_prompt"):
+                self.normalization_export_prompt.visible = False
         except Exception as exc:
-            if hasattr(self, "_show_error_toast"):
-                self._show_error_toast(f"Export failed: {exc}")
+            self._show_error_toast(f"Export failed: {exc}")
             if run_record is not None:
                 try:
                     run_record.status = "failed"
                     run_record.finished_at = now_iso()
                     run_record.summary = f"Export failed: {exc}"
                     self.current_project_state.project.updated_at = now_iso()
-                    if hasattr(self, "_persist_current_project_state"):
-                        self._persist_current_project_state()
+                    self._persist_current_project_state()
                 except Exception:
                     pass
         finally:
             self.operation_in_progress = False
             self._refresh_interaction_states()
-            self._refresh_normalization_sample_norm_button_states()
-            self._sync_normalization_sample_norm_export_prompt_visibility()
+            self._refresh_normalization_export_button_states()
+            self._sync_normalization_export_prompt_visibility()
 
     def _refresh_normalization_vanadium_self_fit_preview_fit_table(self) -> None:
         pane = getattr(self, "normalization_vanadium_self_fit_preview_fit_table", None)
@@ -2233,7 +2343,7 @@ class NormalizationControllerMixin:
                 sigma_warning = "Uncertainties missing; using estimated sigma = 1/q^2 weighting."
 
             from scipy.optimize import curve_fit
-            from toscana.models.scattering import vanaQdep
+            from ntsa.models.scattering import vanaQdep
 
             if pinned_A:
                 # SciPy bounds require lower < upper; "pinning" is handled by removing A from the fit.
@@ -3632,6 +3742,8 @@ class NormalizationControllerMixin:
         self._load_normalization_fit_last_from_context()
         self._refresh_normalization_fit_data_placeholder()
         self._refresh_normalization_fit_params_button_states()
+        self._refresh_normalization_export_button_states()
+        self._refresh_normalization_export_hovercard()
 
     def _on_normalization_custom_files_switch_change(self, event) -> None:
         if getattr(self, "_suspend_normalization_events", False) or self.current_project_state is None:
@@ -4106,6 +4218,8 @@ class NormalizationControllerMixin:
         self._refresh_normalization_fit_params_plot()
         self._refresh_normalization_fit_params_button_states()
         self._refresh_normalization_sample_normalization_plot()
+        self._refresh_normalization_export_button_states()
+        self._refresh_normalization_export_hovercard()
         self._refresh_interaction_states()
 
         # Best-effort: sync the qdat selectors to match the chosen context.
@@ -4135,6 +4249,10 @@ class NormalizationControllerMixin:
                     self._suspend_normalization_events = False
         except Exception:
             pass
+
+        if str(getattr(self.normalization_context_message, "alert_type", "") or "") == "success":
+            if hasattr(self, "_show_success_toast"):
+                self._show_success_toast("Normalization context loaded successfully.")
 
     def _selected_normalization_manifest_ref(self) -> str:
         state = self._get_background_state()

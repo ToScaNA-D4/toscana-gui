@@ -34,12 +34,10 @@ def bind_shell_callbacks(shell) -> None:
     shell.normalization_adopt_cancel_button.on_click(shell._cancel_normalization_adopt)
     shell.normalization_fit_params_suggest_button.on_click(shell._normalization_fit_params_suggest_initial_guess)
     shell.normalization_fit_params_run_button.on_click(shell._normalization_fit_params_run_fit)
-    shell.normalization_fit_params_export_button.on_click(shell._prompt_normalization_fit_params_export)
-    shell.normalization_fit_params_export_confirm_button.on_click(shell._confirm_normalization_fit_params_export)
-    shell.normalization_fit_params_export_cancel_button.on_click(shell._cancel_normalization_fit_params_export)
-    shell.normalization_sample_norm_export_button.on_click(shell._prompt_normalization_sample_norm_export)
-    shell.normalization_sample_norm_export_confirm_button.on_click(shell._confirm_normalization_sample_norm_export)
-    shell.normalization_sample_norm_export_cancel_button.on_click(shell._cancel_normalization_sample_norm_export)
+    shell.normalization_export_button.on_click(shell._prompt_normalization_export)
+    shell.normalization_export_confirm_button.on_click(shell._confirm_normalization_export)
+    shell.normalization_export_cancel_button.on_click(shell._cancel_normalization_export)
+    shell.normalization_export_folder_input.param.watch(shell._on_normalization_export_folder_change, "value")
     shell.normalization_fit_params_plot_mode.param.watch(shell._on_normalization_fit_params_plot_mode_change, "value")
     shell.normalization_fit_params_bounds_toggle.param.watch(shell._on_normalization_fit_params_bounds_toggle_change, "value")
     shell.normalization_vanadium_self_fit_preview_view_switch.param.watch(
@@ -332,9 +330,6 @@ def bind_shell_callbacks(shell) -> None:
     # Self: Fit model
     shell.self_fit_params_suggest_button.on_click(shell._self_fit_params_suggest_initial_guess)
     shell.self_fit_params_run_button.on_click(shell._self_fit_params_run_fit)
-    shell.self_fit_params_export_button.on_click(shell._prompt_self_fit_export)
-    shell.self_fit_export_confirm_button.on_click(shell._confirm_self_fit_export)
-    shell.self_fit_export_cancel_button.on_click(shell._cancel_self_fit_export)
     shell.self_fit_model_selector.param.watch(shell._on_self_fit_model_change, "value")
     shell.self_fit_params_bounds_toggle.param.watch(shell._on_self_fit_params_bounds_toggle_change, "value")
     for prefix, keys in (
@@ -348,13 +343,14 @@ def bind_shell_callbacks(shell) -> None:
             getattr(shell, f"{prefix}_{key}_min").param.watch(shell._on_self_fit_params_change, "value")
             getattr(shell, f"{prefix}_{key}_max").param.watch(shell._on_self_fit_params_change, "value")
 
-    # Self: Static Structure Factor export
-    if hasattr(shell, "self_static_structure_factor_export_button"):
-        shell.self_static_structure_factor_export_button.on_click(shell._prompt_self_static_structure_factor_export)
-    if hasattr(shell, "self_static_structure_factor_export_confirm_button"):
-        shell.self_static_structure_factor_export_confirm_button.on_click(shell._confirm_self_static_structure_factor_export)
-    if hasattr(shell, "self_static_structure_factor_export_cancel_button"):
-        shell.self_static_structure_factor_export_cancel_button.on_click(shell._cancel_self_static_structure_factor_export)
+    if hasattr(shell, "self_export_folder_input"):
+        shell.self_export_folder_input.param.watch(shell._on_self_export_folder_change, "value")
+    if hasattr(shell, "self_export_button"):
+        shell.self_export_button.on_click(shell._prompt_self_export)
+    if hasattr(shell, "self_export_confirm_button"):
+        shell.self_export_confirm_button.on_click(shell._confirm_self_export)
+    if hasattr(shell, "self_export_cancel_button"):
+        shell.self_export_cancel_button.on_click(shell._cancel_self_export)
 
     # Normalization fit-parameter editor (Slice 1: persistence only).
     shell.normalization_fit_params_A_pinned.param.watch(shell._on_normalization_fit_params_change, "value")

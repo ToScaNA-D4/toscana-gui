@@ -7,6 +7,7 @@ from toscana_gui.ui.screens.help import build_help_section
 from toscana_gui.ui.screens.background import build_background_section
 from toscana_gui.ui.screens.numors import build_numors_section
 from toscana_gui.ui.screens.numors import prepare_numors_section
+from toscana_gui.ui.screens.normalization import prepare_normalization_section
 from toscana_gui.ui.screens.normalization import build_normalization_section
 from toscana_gui.ui.screens.self_scattering import build_self_scattering_section
 from toscana_gui.ui.screens.ft import build_ft_section
@@ -87,7 +88,7 @@ def build_continue_project_layout(shell) -> list[object]:
         level="info",
         message=(
             "Continue a previous session by choosing a recent project or opening an "
-            "`toscana-project.json` file directly."
+            "`ntsa-project.json` file directly."
         ),
         persistent=False,
     )
@@ -264,6 +265,8 @@ def prepare_workspace_section_content(shell, tab_name: str) -> None:
     if tab_name == "background":
         from toscana_gui.ui.screens.background import prepare_background_section
         prepare_background_section(shell)
+    if tab_name == "normalization":
+        prepare_normalization_section(shell)
 
 def build_workspace_section_content(shell, tab_name: str) -> object:
     if tab_name == "project":

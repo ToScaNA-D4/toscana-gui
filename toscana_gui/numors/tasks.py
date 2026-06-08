@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import toscana.io.parameters as parameters_module
+import ntsa.io.parameters as parameters_module
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from os import PathLike, chdir, getcwd
 from pathlib import Path
 from typing import Any, Callable
 
-from toscana.io.parameters import readParam
+from ntsa.io.parameters import readParam
 
 NUMORS_SOURCE_OPTIONS = ("Select File", "Write Path")
 NUMORS_PARFILES_DIR = Path("processed") / "parfiles"
@@ -287,6 +287,7 @@ def validate_numors_par_file(par_file: Path, project_root: Path) -> NumorsValida
             str(parsed_settings["path_raw"]),
             "rawdata",
             must_be_dir=True,
+            must_be_within_project=False,
         )
         efffile_path = _resolve_required_path(
             resolved_par_file,
@@ -294,6 +295,7 @@ def validate_numors_par_file(par_file: Path, project_root: Path) -> NumorsValida
             str(parsed_settings["efffile"]),
             "efffile",
             special_tokens=SPECIAL_PATH_TOKENS["efffile"],
+            must_be_within_project=False,
         )
         decfile_path = _resolve_required_path(
             resolved_par_file,
@@ -301,6 +303,7 @@ def validate_numors_par_file(par_file: Path, project_root: Path) -> NumorsValida
             str(parsed_settings["decfile"]),
             "decfile",
             special_tokens=SPECIAL_PATH_TOKENS["decfile"],
+            must_be_within_project=False,
         )
     except ValueError as exc:
         return NumorsValidationResult(
@@ -465,6 +468,7 @@ def _resolve_required_path(
     *,
     special_tokens: set[str] | None = None,
     must_be_dir: bool = False,
+    must_be_within_project: bool = True,
 ) -> str:
     normalized_value = path_value.strip()
     lowered_value = normalized_value.lower()
@@ -477,7 +481,7 @@ def _resolve_required_path(
         if candidate.is_absolute()
         else (par_file.parent / candidate).resolve(strict=False)
     )
-    if not _is_within_project(resolved_candidate, project_root):
+    if must_be_within_project and not _is_within_project(resolved_candidate, project_root):
         raise ValueError(f"Resolved {label} path must stay inside the project.")
     if not resolved_candidate.exists():
         raise ValueError(f"Resolved {label} path does not exist.")

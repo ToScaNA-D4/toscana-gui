@@ -24,6 +24,10 @@ def build_self_scattering_section(shell) -> pn.Column:
         shell._refresh_self_data_selection_panel()
     if hasattr(shell, "_refresh_self_fit_panel"):
         shell._refresh_self_fit_panel()
+    if hasattr(shell, "_refresh_self_export_hovercard"):
+        shell._refresh_self_export_hovercard()
+    if hasattr(shell, "_refresh_self_export_button_states"):
+        shell._refresh_self_export_button_states()
 
     resolved_context_notice = _maybe_toast_only(
         shell,
@@ -75,6 +79,9 @@ def build_self_scattering_section(shell) -> pn.Column:
         ],
     )
 
+    # Shift the low-Q and data-selection cards so their plot anchors line up
+    # with the Fit Model / Static Structure Factor reference cards (320px left gutter).
+    self_plot_left_margin_px = 320 - 206
     lowq_card = pn.Card(
         pn.Column(
             pn.Spacer(height=6),
@@ -182,7 +189,7 @@ def build_self_scattering_section(shell) -> pn.Column:
             ),
             sizing_mode="fixed",
             width=1440,
-            styles={"margin": "0 auto"},
+            styles={"margin": "0 auto", "padding-left": f"{self_plot_left_margin_px}px"},
         ),
         header=pn.Row(
             pn.pane.HTML(
@@ -261,7 +268,7 @@ def build_self_scattering_section(shell) -> pn.Column:
             ),
             sizing_mode="fixed",
             width=1440,
-            styles={"margin": "0 auto"},
+            styles={"margin": "0 auto", "padding-left": f"{self_plot_left_margin_px}px"},
         ),
         header=pn.Row(
             pn.pane.HTML(
@@ -330,7 +337,7 @@ def build_self_scattering_section(shell) -> pn.Column:
                     styles={"align-items": "center"},
                 ),
                 pn.Row(
-                    getattr(shell, "self_fit_params_export_button", pn.Spacer(height=0)),
+                    pn.Spacer(width=0),
                     sizing_mode="fixed",
                     width=320,
                     height=40,
@@ -366,7 +373,7 @@ def build_self_scattering_section(shell) -> pn.Column:
                     pn.Spacer(height=44),
                     getattr(shell, "self_fit_result_table", pn.Spacer(height=0)),
                     pn.Spacer(height=12),
-                    getattr(shell, "self_fit_export_prompt_card", pn.Spacer(height=0)),
+                    pn.Spacer(height=0),
                     sizing_mode="fixed",
                     width=320,
                     styles={"gap": "12px"},
@@ -415,7 +422,7 @@ def build_self_scattering_section(shell) -> pn.Column:
                     styles={"align-items": "center"},
                 ),
                 pn.Row(
-                    getattr(shell, "self_static_structure_factor_export_button", pn.Spacer(height=0)),
+                    pn.Spacer(width=0),
                     sizing_mode="fixed",
                     width=320,
                     height=40,
@@ -442,7 +449,7 @@ def build_self_scattering_section(shell) -> pn.Column:
                 ),
                 pn.Column(
                     pn.Spacer(height=44),
-                    getattr(shell, "self_static_structure_factor_export_prompt_card", pn.Spacer(height=0)),
+                    pn.Spacer(height=0),
                     sizing_mode="fixed",
                     width=320,
                     styles={"gap": "12px"},
@@ -485,6 +492,8 @@ def build_self_scattering_section(shell) -> pn.Column:
         fit_model_card,
         pn.Spacer(height=28),
         static_structure_factor_card,
+        pn.Spacer(height=16),
+        getattr(shell, "self_export_card", pn.Spacer(height=0)),
         sizing_mode="stretch_width",
     )
 
