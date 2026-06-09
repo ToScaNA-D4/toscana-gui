@@ -3647,14 +3647,18 @@ class NormalizationControllerMixin:
             return f"{float(value):.2f}"
         
         def _fmt_path(path: str | None) -> str:
-
-            _, keyword, after = path.partition("processed")
-            if keyword:
-                path = keyword + after
-            else:
-                path = path
-            
-            return path
+            if not path:
+                return ""
+            candidate = Path(path).expanduser()
+            project_root = getattr(self, "current_project_root", None)
+            if project_root is not None:
+                try:
+                    return candidate.resolve(strict=False).relative_to(
+                        Path(project_root).resolve(strict=False)
+                    ).as_posix()
+                except Exception:
+                    pass
+            return str(candidate.resolve(strict=False))
 
         mode_label = self._normalization_fit_data_mode_label(mode)
         q_summary = f"[{_fmt_float(q_focus_min)}, {_fmt_float(q_focus_max)}]"

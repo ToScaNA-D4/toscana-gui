@@ -16,7 +16,6 @@ from toscana_gui.persistence import (
 )
 
 PROJECT_BOOTSTRAP_DIRS: tuple[str, ...] = (
-    "rawdata",
     "parfiles",
     "regdata",
     "qspdata",

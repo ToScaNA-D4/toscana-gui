@@ -179,7 +179,7 @@ class ProjectSessionControllerMixin:
         self.reset_project_prompt.object = (
             "This will permanently delete generated files and reset the project state.\n\n"
             f"**Will delete:** {', '.join(targets)}\n\n"
-            f"**Will keep:** project name, `rawdata/`, `toscana-project.json` (reset to blank state), and {parfiles_label}.\n\n"
+            f"**Will keep:** project name, `toscana-project.json` (reset to blank state), and {parfiles_label}.\n\n"
             "Proceed?"
         )
         self.reset_project_prompt.alert_type = "danger"
@@ -317,7 +317,17 @@ class ProjectSessionControllerMixin:
         return REPO_ROOT
 
     def _update_start_project_message(self) -> None:
-        project_root = self._default_new_project_root()
+        try:
+            project_root = self._default_new_project_root()
+        except RuntimeError as exc:
+            self.start_project_message.object = (
+                "This branch needs `TOSCANA_MACHINE_PROJECT_ROOT` to be set to the project "
+                "root or the `processed/` directory before you can start a project.\n\n"
+                f"**Configuration error:** {exc}"
+            )
+            self.start_project_message.alert_type = "danger"
+            return
+
         project_name = project_root.name or "project"
         self.start_project_message.object = (
             "This branch will automatically open or create the configured project root.\n\n"
@@ -983,7 +993,7 @@ class ProjectSessionControllerMixin:
     def _create_project(self, _event) -> None:
         try:
             project_state, project_file, created = self._bootstrap_machine_project()
-        except OSError as exc:
+        except (OSError, RuntimeError) as exc:
             self.start_project_message.object = (
                 f"Could not open or create the configured project root: {exc}"
             )
