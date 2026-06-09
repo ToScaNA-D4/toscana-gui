@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from toscana_gui.project_paths import project_data_path
+
 
 def contexts_root(project_root: Path) -> Path:
-    return project_root / "processed" / "contexts"
+    return project_data_path(project_root, "contexts")
 
 
 def _to_project_relative_path(project_root: Path, path: Path) -> str:

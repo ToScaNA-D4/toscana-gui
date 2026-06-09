@@ -111,8 +111,8 @@ def refresh_interaction_states(shell) -> None:
     shell.reset_project_button.disabled = disabled or shell.current_project_state is None
     shell.reset_project_confirm_button.disabled = disabled
     shell.reset_project_cancel_button.disabled = disabled
-    shell.project_editor_name_input.disabled = disabled
-    shell.save_project_button.disabled = disabled
+    shell.project_editor_name_input.disabled = True
+    shell.save_project_button.disabled = True
     shell.numors_source_mode.disabled = disabled
     numors_picker_mode = shell.numors_source_mode.value == "Select File"
     shell.numors_par_dropdown.disabled = disabled or not numors_picker_mode
@@ -271,7 +271,6 @@ def refresh_interaction_states(shell) -> None:
     shell.manual_open_button.disabled = disabled or not shell.manual_project_file_input.value.strip()
     shell.project_folder_mode.disabled = disabled
     folder_is_picker_mode = shell.project_folder_mode.value == "Choose folder"
-    selected_folder_value = shell.project_folder_selected_display.value.strip()
     shell.project_folder_browse_button.disabled = disabled or not folder_is_picker_mode
     shell.project_folder_native_browse_button.disabled = disabled or not folder_is_picker_mode
     shell.project_folder_confirm_button.disabled = (
@@ -279,10 +278,8 @@ def refresh_interaction_states(shell) -> None:
     )
     shell.project_folder_cancel_button.disabled = disabled or not folder_is_picker_mode
     shell.project_folder_file_selector.disabled = disabled or not folder_is_picker_mode
-    shell.create_project_confirm_button.disabled = (
-        disabled or (folder_is_picker_mode and not selected_folder_value)
-    )
-    shell.project_name_input.disabled = disabled
+    shell.create_project_confirm_button.disabled = disabled
+    shell.project_name_input.disabled = True
     shell.project_folder_input.disabled = disabled or folder_is_picker_mode
     shell.numors_run_button.disabled = disabled or not shell._get_numors_state()["validation"].get(
         "is_valid",

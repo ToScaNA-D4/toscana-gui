@@ -160,19 +160,20 @@ def initialize_shell_widgets(shell) -> None:
         sizing_mode="stretch_width",
     )
     shell.create_project_confirm_button = pn.widgets.Button(
-        name="Create Project",
+        name="Open or Create Project",
         button_type="primary",
         sizing_mode="fixed",
         width=220,
         height=52,
     )
     shell.start_project_message = pn.pane.Alert(
-        "Provide a project name and a target folder.",
+        "This branch uses a fixed project root and derives the project name automatically.",
         alert_type="secondary",
         sizing_mode="stretch_width",
     )
     shell.project_editor_name_input = pn.widgets.TextInput(
         name="Project Name",
+        disabled=True,
         sizing_mode="stretch_width",
     )
     shell.save_project_button = pn.widgets.Button(
@@ -277,7 +278,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.numors_manual_path_input = pn.widgets.TextInput(
         name="File Path",
-        placeholder=r"D:\ILL\ToScaNA\Project\processed\parfiles\do_name.par",
+        placeholder=r"D:\ILL\ToScaNA\Project\parfiles\do_name.par",
         sizing_mode="stretch_width",
         margin=(0, 0, 12, 20),
     )
@@ -520,7 +521,7 @@ def initialize_shell_widgets(shell) -> None:
     )
     shell.background_manual_path_input = pn.widgets.TextInput(
         name="File Path",
-        placeholder=r"D:\ILL\ToScaNA\Project\processed\parfiles\sample.par",
+        placeholder=r"D:\ILL\ToScaNA\Project\parfiles\sample.par",
         sizing_mode="stretch_width",
         margin=(0, 0, 12, 20),
     )
@@ -1229,8 +1230,8 @@ def initialize_shell_widgets(shell) -> None:
 
     shell.background_export_folder_input = pn.widgets.TextInput(
         name="Export folder",
-        value="processed/qspdata",
-        placeholder="processed/qspdata",
+        value="qspdata",
+        placeholder="qspdata",
         sizing_mode="stretch_width",
     )
     shell.background_export_button = pn.widgets.Button(
@@ -1980,8 +1981,8 @@ def initialize_shell_widgets(shell) -> None:
 
     shell.normalization_export_folder_input = pn.widgets.TextInput(
         name="Export folder",
-        value="processed/normalization/",
-        placeholder="processed/normalization/",
+        value="normalization/",
+        placeholder="normalization/",
         sizing_mode="stretch_width",
     )
     shell.normalization_export_button = pn.widgets.Button(
@@ -2055,7 +2056,7 @@ def initialize_shell_widgets(shell) -> None:
     )
 
     shell.normalization_fit_params_action_hint = pn.pane.Markdown(
-        "_Fit runs in-app (does not write to the project). Export writes `processed/normalization/<context_id>/vanadium_self_fit.qdat`._",
+        "_Fit runs in-app (does not write to the project). Export writes `normalization/<context_id>/vanadium_self_fit.qdat`._",
         sizing_mode="stretch_width",
     )
 
@@ -4590,8 +4591,8 @@ def initialize_shell_widgets(shell) -> None:
 
     shell.self_export_folder_input = pn.widgets.TextInput(
         name="Export folder",
-        value="processed/self_scattering/",
-        placeholder="processed/self_scattering/",
+        value="self_scattering/",
+        placeholder="self_scattering/",
         sizing_mode="stretch_width",
     )
     shell.self_export_button = pn.widgets.Button(

@@ -1527,7 +1527,7 @@ class NormalizationControllerMixin:
             self._show_warning_toast("Select a background context first.")
             return
 
-        target = self.current_project_root / "processed" / "normalization" / context_id / "vanadium_self_fit.qdat"
+        target = self._project_data_path("normalization", context_id, "vanadium_self_fit.qdat")
         rel_target = project_relpath(self.current_project_root, target)
         lines = [
             f"Export target: `{rel_target}`",
@@ -1643,7 +1643,7 @@ class NormalizationControllerMixin:
             with np.errstate(divide="ignore", invalid="ignore"):
                 norpoly = np.where(norsigm != 0, norSelf / norsigm, np.nan)
 
-            target_dir = self.current_project_root / "processed" / "normalization" / context_id
+            target_dir = self._project_data_path("normalization", context_id)
             target_dir.mkdir(parents=True, exist_ok=True)
             target = target_dir / "vanadium_self_fit.qdat"
 
@@ -1742,7 +1742,7 @@ class NormalizationControllerMixin:
             return None
         raw = str(getattr(getattr(self, "normalization_export_folder_input", None), "value", "") or "").strip()
         if not raw:
-            raw = "processed/normalization/"
+            raw = "normalization/"
         candidate = Path(raw).expanduser()
         if not candidate.is_absolute():
             candidate = (self.current_project_root / candidate).resolve(strict=False)
@@ -1798,7 +1798,7 @@ class NormalizationControllerMixin:
             return snapshot
 
         user_target_dir = export_root / context_id
-        canonical_target_dir = self.current_project_root / "processed" / "normalization" / context_id
+        canonical_target_dir = self._project_data_path("normalization", context_id)
         qspdata_target_dir = ensure_qspdata_dir(self.current_project_root)
 
         snapshot["user_target"] = str(user_target_dir / filename)
@@ -1950,7 +1950,7 @@ class NormalizationControllerMixin:
             return
 
         user_target_dir = export_root / context_id
-        canonical_target_dir = self.current_project_root / "processed" / "normalization" / context_id
+        canonical_target_dir = self._project_data_path("normalization", context_id)
         user_target_dir.mkdir(parents=True, exist_ok=True)
         canonical_target_dir.mkdir(parents=True, exist_ok=True)
         qspdata_target_dir = ensure_qspdata_dir(self.current_project_root)
@@ -3826,11 +3826,11 @@ class NormalizationControllerMixin:
         if sample_files:
             sample_options = {p.name: str(p.resolve(strict=False)) for p in sample_files}
         else:
-            sample_options = {"No sample qdat files found in processed/qspdata/.": ""}
+            sample_options = {"No sample qdat files found in qspdata/.": ""}
         if vanadium_files:
             vanadium_options = {p.name: str(p.resolve(strict=False)) for p in vanadium_files}
         else:
-            vanadium_options = {"Missing `vanadium_sub.qdat` in processed/qspdata/.": ""}
+            vanadium_options = {"Missing `vanadium_sub.qdat` in qspdata/.": ""}
 
         self._suspend_normalization_events = True
         try:
@@ -3913,7 +3913,7 @@ class NormalizationControllerMixin:
         self._pending_normalization_import_paths = {label: path.resolve(strict=False) for label, path in outside}
         lines = [
             "One or more selected `.qdat` files are outside the current project.",
-            "Copy them into `processed/qspdata/` to continue:",
+            "Copy them into `qspdata/` to continue:",
             "",
         ]
         for label, path in outside:
@@ -3946,7 +3946,7 @@ class NormalizationControllerMixin:
 
         if conflicts:
             self.normalization_selection_message.object = (
-                "Import blocked because a file with the same name already exists in `processed/qspdata/`."
+                "Import blocked because a file with the same name already exists in `qspdata/`."
             )
             self.normalization_selection_message.alert_type = "danger"
             self.normalization_import_prompt.alert_type = "danger"

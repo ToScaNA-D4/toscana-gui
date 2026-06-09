@@ -51,7 +51,7 @@ class NumorsControllerMixin:
         ensure_numors_parfiles_dir(self.current_project_root)
         do_pars = list_numors_par_files(self.current_project_root)
         if not do_pars:
-            self.numors_par_dropdown.options = {"No do_.par files found in processed/parfiles.": ""}
+            self.numors_par_dropdown.options = {"No do_.par files found in parfiles/.": ""}
             if apply_selection:
                 self.numors_par_dropdown.value = ""
             return
@@ -285,7 +285,7 @@ class NumorsControllerMixin:
         self._pending_numors_import_path = candidate_path.resolve(strict=False)
         self.numors_import_prompt.object = (
             "The selected .par file is outside the current project. "
-            "Copy it into `processed/parfiles/` to continue."
+            "Copy it into `parfiles/` to continue."
         )
         self.numors_import_prompt.alert_type = "warning"
         self.numors_import_prompt.visible = True
@@ -308,7 +308,7 @@ class NumorsControllerMixin:
         target_path = target_dir / source_path.name
         if target_path.exists():
             self.numors_message.object = (
-                "A .par file with the same name already exists in `processed/parfiles/`. "
+                "A .par file with the same name already exists in `parfiles/`. "
                 "Rename the source file manually and try again."
             )
             self.numors_message.alert_type = "danger"
@@ -401,7 +401,7 @@ class NumorsControllerMixin:
             return
 
         run_id = self._create_run_id()
-        stdout_file = self.current_project_root / "processed" / "logfiles" / f"{run_id}-stdout.txt"
+        stdout_file = self._project_data_path("logfiles", f"{run_id}-stdout.txt")
         run_record = RunRecord(
             run_id=run_id,
             workflow="numors",
@@ -418,7 +418,7 @@ class NumorsControllerMixin:
         self.operation_in_progress = True
         self._numors_active_run_id = run_id
         self._numors_result_file = (
-            self.current_project_root / "processed" / "logfiles" / f"{run_id}-result.json"
+            self._project_data_path("logfiles", f"{run_id}-result.json")
         )
         self._clear_workspace_message()
         self.numors_message.object = "Running d4creg. Workspace interactions are blocked until it finishes."
@@ -529,10 +529,7 @@ class NumorsControllerMixin:
         if self.current_project_root is None or self._numors_active_run_id is None:
             return ""
         return str(
-            self.current_project_root
-            / "processed"
-            / "logfiles"
-            / f"{self._numors_active_run_id}-stdout.txt"
+            self._project_data_path("logfiles", f"{self._numors_active_run_id}-stdout.txt")
         )
 
     def _build_numors_failure_result(

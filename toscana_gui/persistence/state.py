@@ -88,6 +88,7 @@ class ProjectMetadata:
     name: str
     created_at: str
     updated_at: str
+    layout_version: int = 1
 
 
 @dataclass(slots=True)
@@ -131,7 +132,13 @@ class ProjectState:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> ProjectState:
-        project = ProjectMetadata(**payload["project"])
+        raw_project = payload["project"]
+        if not isinstance(raw_project, dict):
+            raise TypeError("Project payload must be a mapping.")
+        project_fields = {"name", "created_at", "updated_at", "layout_version"}
+        project = ProjectMetadata(
+            **{key: raw_project[key] for key in raw_project if key in project_fields}
+        )
         resume = ResumeState(**payload.get("resume", {}))
         runs = []
         for record in payload.get("runs", []):
@@ -157,6 +164,7 @@ def create_project_state(
     project_name: str,
     *,
     last_top_level_tab: TopLevelTab = "project",
+    layout_version: int = 1,
 ) -> ProjectState:
     timestamp = now_iso()
     return ProjectState(
@@ -165,6 +173,7 @@ def create_project_state(
             name=project_name,
             created_at=timestamp,
             updated_at=timestamp,
+            layout_version=layout_version,
         ),
         resume=ResumeState(last_top_level_tab=last_top_level_tab),
         numors={},

@@ -8,6 +8,7 @@ from os import chdir, getcwd
 from pathlib import Path
 from typing import Any, Literal
 
+from toscana_gui.project_paths import project_data_path
 from toscana.io.running_params import getRunningParams
 from toscana.experiment.measurement import Measurement
 
@@ -368,7 +369,7 @@ def is_sample_par_file(path: Path) -> bool:
 
 
 def list_sample_par_files(project_root: Path) -> list[Path]:
-    par_dir = project_root / "processed" / "parfiles"
+    par_dir = project_data_path(project_root, "parfiles")
     if not par_dir.exists() or not par_dir.is_dir():
         return []
     paths = [candidate for candidate in par_dir.glob("*.par") if is_sample_par_file(candidate)]
@@ -380,7 +381,7 @@ def is_par_file_in_processed_parfiles(par_file: Path, project_root: Path) -> boo
         resolved = par_file.expanduser().resolve(strict=False)
     except Exception:
         return False
-    expected_dir = (project_root / "processed" / "parfiles").resolve(strict=False)
+    expected_dir = project_data_path(project_root, "parfiles").resolve(strict=False)
     return resolved.parent == expected_dir
 
 
@@ -438,9 +439,8 @@ def execute_background_extraction(
     resolved_par_file = par_file.expanduser().resolve(strict=False)
     project_root = project_root.resolve(strict=False)
 
-    processed_dir = project_root / "processed"
-    logfiles_dir = processed_dir / "logfiles"
-    artifacts_dir = processed_dir / "background" / run_id
+    logfiles_dir = project_data_path(project_root, "logfiles")
+    artifacts_dir = project_data_path(project_root, "background", run_id)
     logfiles_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 

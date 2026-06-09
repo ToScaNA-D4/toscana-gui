@@ -358,7 +358,7 @@ class FTControllerMixin:
 
         filename_no = f"{stem}_RSF_NoLorch.dat"
         filename_l = f"{stem}_RSF_Lorch.dat"
-        target_dir = self.current_project_root / "processed" / "ft" / context_id
+        target_dir = self._project_data_path("ft", context_id)
         target_no = target_dir / filename_no
         target_l = target_dir / filename_l
 
@@ -500,7 +500,7 @@ class FTControllerMixin:
             if hasattr(self, "_refresh_interaction_states"):
                 self._refresh_interaction_states()
 
-            target_dir = self.current_project_root / "processed" / "ft" / context_id
+            target_dir = self._project_data_path("ft", context_id)
             target_dir.mkdir(parents=True, exist_ok=True)
             target_no = target_dir / filename_no
             target_l = target_dir / filename_l
@@ -2353,4 +2353,3 @@ class FTControllerMixin:
             self.ft_rho_plot_pane.param.trigger("object")
         except Exception:
             pass
-

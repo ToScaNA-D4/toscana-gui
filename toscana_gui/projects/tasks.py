@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
+from toscana_gui.project_paths import SIBLING_PROJECT_LAYOUT_VERSION
+from toscana_gui.project_paths import project_data_path
 from toscana_gui.persistence import (
     ProjectState,
     RecentProjectEntry,
@@ -11,6 +13,20 @@ from toscana_gui.persistence import (
     now_iso,
     save_app_state,
     save_project_state,
+)
+
+PROJECT_BOOTSTRAP_DIRS: tuple[str, ...] = (
+    "rawdata",
+    "parfiles",
+    "regdata",
+    "qspdata",
+    "logfiles",
+    "background",
+    "normalization",
+    "self_scattering",
+    "ft",
+    "bft",
+    "contexts",
 )
 
 WorkspaceTab = Literal[
@@ -113,11 +129,47 @@ def remember_project(app_state, project_state: ProjectState, project_file: Path)
     )
 
 
-def create_new_project(project_name: str, project_root: Path) -> tuple[ProjectState, Path]:
-    project_state = create_project_state(project_name, last_top_level_tab="project")
+def ensure_project_bootstrap_dirs(project_root: Path, *, layout_version: int) -> None:
+    for dirname in PROJECT_BOOTSTRAP_DIRS:
+        project_data_path(project_root, dirname, layout_version=layout_version).mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+
+def create_new_project(
+    project_name: str,
+    project_root: Path,
+    *,
+    layout_version: int = SIBLING_PROJECT_LAYOUT_VERSION,
+) -> tuple[ProjectState, Path]:
+    project_state = create_project_state(
+        project_name,
+        last_top_level_tab="project",
+        layout_version=layout_version,
+    )
     project_file = project_root / "toscana-project.json"
     save_project_state(project_file, project_state)
+    ensure_project_bootstrap_dirs(project_root, layout_version=layout_version)
     return project_state, project_file.resolve()
+
+
+def bootstrap_project(
+    project_root: Path,
+    *,
+    layout_version: int = SIBLING_PROJECT_LAYOUT_VERSION,
+) -> tuple[ProjectState, Path, bool]:
+    project_file = project_root / "toscana-project.json"
+    if project_file.exists():
+        return load_project_state(project_file), project_file.resolve(), False
+
+    project_name = project_root.name.strip() or "project"
+    project_state, resolved_project_file = create_new_project(
+        project_name,
+        project_root,
+        layout_version=layout_version,
+    )
+    return project_state, resolved_project_file, True
 
 
 def save_project_file(project_file: Path, project_state: ProjectState) -> None:

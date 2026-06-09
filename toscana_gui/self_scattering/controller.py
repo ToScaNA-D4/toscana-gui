@@ -2031,7 +2031,7 @@ class SelfScatteringControllerMixin:
             return None
         raw = str(getattr(getattr(self, "self_export_folder_input", None), "value", "") or "").strip()
         if not raw:
-            raw = "processed/self_scattering/"
+            raw = "self_scattering/"
         candidate = Path(raw).expanduser()
         if not candidate.is_absolute():
             candidate = (self.current_project_root / candidate).resolve(strict=False)
@@ -2119,8 +2119,8 @@ class SelfScatteringControllerMixin:
         filename_a = f"{stem}_SOQ.adat"
 
         user_target_dir = export_root / context_id
-        canonical_target_dir = self.current_project_root / "processed" / "self_scattering" / context_id
-        qspdata_target_dir = self.current_project_root / "processed" / "qspdata"
+        canonical_target_dir = self._project_data_path("self_scattering", context_id)
+        qspdata_target_dir = self._project_data_path("qspdata")
         snapshot["user_target_dir"] = str(user_target_dir)
         snapshot["canonical_target_dir"] = str(canonical_target_dir)
         snapshot["qspdata_target_dir"] = str(qspdata_target_dir)

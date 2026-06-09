@@ -7,10 +7,11 @@ from os import PathLike, chdir, getcwd
 from pathlib import Path
 from typing import Any, Callable
 
+from toscana_gui.project_paths import project_data_path
 from toscana.io.parameters import readParam
 
 NUMORS_SOURCE_OPTIONS = ("Select File", "Write Path")
-NUMORS_PARFILES_DIR = Path("processed") / "parfiles"
+NUMORS_PARFILES_DIR = Path("parfiles")
 DEFAULT_D4CREG_EXTENSIONS: tuple[str, str, str, str, str, str] = (
     ".reg",
     ".adat",
@@ -151,7 +152,7 @@ def normalize_numors_state(payload: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def ensure_numors_parfiles_dir(project_root: Path) -> Path:
-    target = project_root / NUMORS_PARFILES_DIR
+    target = project_data_path(project_root, "parfiles")
     target.mkdir(parents=True, exist_ok=True)
     return target
 
@@ -167,7 +168,7 @@ def is_numors_par_file(path: Path) -> bool:
 
 
 def list_numors_par_files(project_root: Path) -> list[Path]:
-    par_dir = project_root / NUMORS_PARFILES_DIR
+    par_dir = project_data_path(project_root, "parfiles")
     if not par_dir.exists() or not par_dir.is_dir():
         return []
     paths = [candidate for candidate in par_dir.glob("*.par") if is_numors_par_file(candidate)]

@@ -7,19 +7,21 @@ from pathlib import Path
 
 import panel as pn
 
+from toscana_gui.paths import machine_project_root
 from toscana_gui.paths import REPO_ROOT
 from toscana_gui.persistence import (
     APP_STATE_FILENAME,
     PARIS_TZ,
     PROJECT_STATE_FILENAME,
     RecentProjectEntry,
+    ProjectState,
     create_project_state,
     load_project_state,
     now_iso,
 )
 from toscana_gui.projects.tasks import (
     WorkspaceTab,
-    create_new_project,
+    bootstrap_project,
     normalize_workspace_tab,
     persist_app_state,
     remember_project,
@@ -31,9 +33,47 @@ from toscana_gui.projects.tasks import (
 
 class ProjectSessionControllerMixin:
     _PROJECT_FOLDER_INVALID_CHARS = r'<>:"/\\|?*'
+    _GENERATED_LAYOUT_DIRS = (
+        "logfiles",
+        "background",
+        "normalization",
+        "self_scattering",
+        "ft",
+        "bft",
+        "contexts",
+        "qspdata",
+        "regdata",
+    )
 
     def _default_new_project_root(self) -> Path:
-        return REPO_ROOT / "Projects"
+        return machine_project_root()
+
+    def _bootstrap_machine_project(self) -> tuple[ProjectState, Path, bool]:
+        project_root = self._default_new_project_root().expanduser()
+        project_root.mkdir(parents=True, exist_ok=True)
+        project_state, project_file, created = bootstrap_project(project_root)
+        return project_state, project_file, created
+
+    def _project_layout_version(self) -> int:
+        if self.current_project_state is None:
+            return 1
+        try:
+            return int(getattr(self.current_project_state.project, "layout_version", 1))
+        except Exception:
+            return 1
+
+    def _uses_sibling_layout(self) -> bool:
+        return self._project_layout_version() >= 2
+
+    def _project_data_root(self) -> Path:
+        if self.current_project_root is None:
+            return self._default_new_project_root()
+        if self._uses_sibling_layout():
+            return self.current_project_root
+        return self.current_project_root / "processed"
+
+    def _project_data_path(self, *parts: str | Path) -> Path:
+        return self._project_data_root().joinpath(*parts)
 
     def _sanitize_project_name_folder_component(self, project_name: str) -> str:
         tokens: list[str] = []
@@ -119,17 +159,27 @@ class ProjectSessionControllerMixin:
             self._show_warning_toast("Open a project before resetting it.")
             return
 
-        processed_dir = self.current_project_root / "processed"
         targets: list[str] = []
-        if processed_dir.exists():
-            targets.append("`processed/` (everything except `processed/parfiles/`)")
+        parfiles_label = "`parfiles/`" if self._uses_sibling_layout() else "`processed/parfiles/`"
+        if self._uses_sibling_layout():
+            existing = [
+                name
+                for name in self._GENERATED_LAYOUT_DIRS
+                if (self.current_project_root / name).exists()
+            ]
+            if existing:
+                targets.extend(f"`{name}/`" for name in existing)
         if not targets:
-            targets.append("`processed/` (will be re-created if missing)")
+            targets.append(
+                "generated folders (will be re-created if missing)"
+                if self._uses_sibling_layout()
+                else "`processed/` (will be re-created if missing)"
+            )
 
         self.reset_project_prompt.object = (
             "This will permanently delete generated files and reset the project state.\n\n"
             f"**Will delete:** {', '.join(targets)}\n\n"
-            "**Will keep:** project name, `rawdata/`, `toscana-project.json` (reset to blank state), and `processed/parfiles/`.\n\n"
+            f"**Will keep:** project name, `rawdata/`, `toscana-project.json` (reset to blank state), and {parfiles_label}.\n\n"
             "Proceed?"
         )
         self.reset_project_prompt.alert_type = "danger"
@@ -156,12 +206,21 @@ class ProjectSessionControllerMixin:
         self._render_current_screen()
 
         project_root = self.current_project_root.resolve(strict=False)
-        processed_dir = project_root / "processed"
-        parfiles_dir = processed_dir / "parfiles"
+        data_root = self._project_data_root().resolve(strict=False)
+        parfiles_dir = self._project_data_path("parfiles").resolve(strict=False)
 
         try:
-            if processed_dir.exists() and processed_dir.is_dir():
-                for child in processed_dir.iterdir():
+            if self._uses_sibling_layout():
+                for folder_name in self._GENERATED_LAYOUT_DIRS:
+                    target = project_root / folder_name
+                    if target.is_dir():
+                        shutil.rmtree(target, ignore_errors=False)
+                    elif target.exists():
+                        target.unlink(missing_ok=True)
+                for folder_name in self._GENERATED_LAYOUT_DIRS:
+                    (project_root / folder_name).mkdir(parents=True, exist_ok=True)
+            elif data_root.exists() and data_root.is_dir():
+                for child in data_root.iterdir():
                     if child.name.lower() == "parfiles":
                         continue
                     if child.is_dir():
@@ -169,12 +228,15 @@ class ProjectSessionControllerMixin:
                     else:
                         child.unlink(missing_ok=True)
 
-            processed_dir.mkdir(parents=True, exist_ok=True)
             parfiles_dir.mkdir(parents=True, exist_ok=True)
 
             old_name = self.current_project_state.project.name
             old_created_at = self.current_project_state.project.created_at
-            new_state = create_project_state(old_name, last_top_level_tab="project")
+            new_state = create_project_state(
+                old_name,
+                last_top_level_tab="project",
+                layout_version=self._project_layout_version(),
+            )
             new_state.project.created_at = old_created_at
 
             self.current_project_state = new_state
@@ -255,19 +317,15 @@ class ProjectSessionControllerMixin:
         return REPO_ROOT
 
     def _update_start_project_message(self) -> None:
-        if self.project_folder_mode.value == "Choose folder":
-            selected_value = self.project_folder_selected_display.value.strip()
-            if selected_value:
-                self.start_project_message.object = f"Selected folder: `{selected_value}`"
-                self.start_project_message.alert_type = "secondary"
-            else:
-                self.start_project_message.object = (
-                    "Choose a project folder to continue (it must be empty if it exists)."
-                )
-                self.start_project_message.alert_type = "warning"
-        else:
-            self.start_project_message.object = "Provide a project name and a target folder."
-            self.start_project_message.alert_type = "secondary"
+        project_root = self._default_new_project_root()
+        project_name = project_root.name or "project"
+        self.start_project_message.object = (
+            "This branch will automatically open or create the configured project root.\n\n"
+            f"**Project root:** `{project_root}`\n\n"
+            f"**Derived project name:** `{project_name}`\n\n"
+            "If a `toscana-project.json` file already exists there, it will be loaded instead of overwritten."
+        )
+        self.start_project_message.alert_type = "secondary"
 
     def _on_project_folder_mode_change(self, event) -> None:
         if event.new == event.old:
@@ -543,7 +601,10 @@ class ProjectSessionControllerMixin:
         self.project_editor_name_input.value = self.current_project_state.project.name
         self._suspend_dirty_tracking = False
         self.current_project_dirty = False
-        self.project_editor_message.object = "No unsaved changes."
+        if self._uses_sibling_layout():
+            self.project_editor_message.object = "Project name is locked on this branch."
+        else:
+            self.project_editor_message.object = "No unsaved changes."
         self.project_editor_message.alert_type = "secondary"
         self._load_numors_state_into_widgets()
         if hasattr(self, "_load_background_state_into_widgets"):
@@ -787,6 +848,11 @@ class ProjectSessionControllerMixin:
     def _on_project_editor_name_change(self, _event) -> None:
         if self._suspend_dirty_tracking or self.current_project_state is None:
             return
+        if self._uses_sibling_layout():
+            self.current_project_dirty = False
+            self.project_editor_message.object = "Project name is locked on this branch."
+            self.project_editor_message.alert_type = "secondary"
+            return
         saved_name = self.current_project_state.project.name
         current_name = self.project_editor_name_input.value.strip()
         self.current_project_dirty = current_name != saved_name
@@ -822,7 +888,6 @@ class ProjectSessionControllerMixin:
             self.current_project_file = None
             self.current_project_dirty = False
             self.current_top_level_tab = "project"
-            self._reset_project_folder_autofill_for_start()
             self._update_start_project_message()
         elif action == "continue":
             self.workspace_entrypoint = "Continue Previous Project"
@@ -854,6 +919,11 @@ class ProjectSessionControllerMixin:
             return False
         if self.current_project_state is None or self.current_project_file is None:
             return False
+        if self._uses_sibling_layout():
+            self.current_project_dirty = False
+            self.project_editor_message.object = "Project name is locked on this branch."
+            self.project_editor_message.alert_type = "secondary"
+            return True
         updated_name = self.project_editor_name_input.value.strip()
         if not updated_name:
             self.project_editor_message.object = "Project name cannot be empty."
@@ -911,49 +981,11 @@ class ProjectSessionControllerMixin:
                 self._persist_current_project_state()
 
     def _create_project(self, _event) -> None:
-        project_name = self.project_name_input.value.strip()
-        project_folder_raw = self.project_folder_input.value.strip()
-
-        if not project_name:
-            self.start_project_message.object = "Project name is required."
-            self.start_project_message.alert_type = "danger"
-            return
-        if not project_folder_raw:
-            self.start_project_message.object = "Project folder is required."
-            self.start_project_message.alert_type = "danger"
-            return
-
-        project_root = Path(project_folder_raw).expanduser()
-        if project_root.exists():
-            if not project_root.is_dir():
-                self.start_project_message.object = (
-                    "Project folder path exists but is not a directory."
-                )
-                self.start_project_message.alert_type = "danger"
-                return
-            if any(project_root.iterdir()):
-                self.start_project_message.object = (
-                    "Project folder must be empty before creating a new project."
-                )
-                self.start_project_message.alert_type = "danger"
-                return
-        else:
-            try:
-                project_root.mkdir(parents=True, exist_ok=True)
-            except OSError as exc:
-                self.start_project_message.object = (
-                    f"Could not create the project folder: {exc}. "
-                    "Choose another folder or check permissions."
-                )
-                self.start_project_message.alert_type = "danger"
-                return
-
         try:
-            project_state, project_file = create_new_project(project_name, project_root)
+            project_state, project_file, created = self._bootstrap_machine_project()
         except OSError as exc:
             self.start_project_message.object = (
-                f"Could not write project files to the selected folder: {exc}. "
-                "Choose another folder or check permissions."
+                f"Could not open or create the configured project root: {exc}"
             )
             self.start_project_message.alert_type = "danger"
             return
@@ -961,19 +993,23 @@ class ProjectSessionControllerMixin:
             self._reset_normalization_runtime_state()
         if hasattr(self, "_reset_self_scattering_runtime_state"):
             self._reset_self_scattering_runtime_state()
-        self.current_project_root = project_root.resolve()
+        self.current_project_root = project_file.parent.resolve()
         self.current_project_file = project_file
         self.current_project_state = project_state
         if hasattr(self, "_clear_run_history_viewers"):
             self._clear_run_history_viewers()
-        self.workspace_result = "created"
+        self.workspace_result = "created" if created else "opened"
         self.current_top_level_tab = "project"
-        self._load_project_into_editor()
-        self._remember_current_project()
+        if created:
+            self._load_project_into_editor()
+            self._remember_current_project()
+        else:
+            self._open_project(project_file)
+            return
         self._clear_workspace_message()
         self._pulse_workspace_loading("Creating project...")
         self._render_current_screen()
-        self._show_success_toast(f"Project {project_name} created successfully.")
+        self._show_success_toast(f"Project {project_state.project.name} created successfully.")
 
     def _open_project_from_manual_path(self, _event) -> None:
         project_file_raw = self.manual_project_file_input.value.strip()

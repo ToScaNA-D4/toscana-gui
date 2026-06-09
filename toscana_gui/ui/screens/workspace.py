@@ -30,47 +30,20 @@ def build_start_project_layout(shell) -> list[object]:
             "start_project:intro",
             level="info",
             message=(
-                "Define the basic project information below. The target folder may be created "
-                "if it does not exist yet. If it already exists, it must be empty."
+                "This branch uses a fixed project root and will automatically create or open "
+                "the project state there."
             ),
             persistent=False,
         )
-        folder_widget = (
-            shell.project_folder_input
-            if shell.project_folder_mode.value == "Enter folder path"
-            else pn.Column(
-                shell.project_folder_selected_display,
-                pn.Row(
-                    shell.project_folder_browse_button,
-                    shell.project_folder_native_browse_button,
-                ),
-                (
-                    pn.Card(
-                        shell.project_folder_file_selector,
-                        pn.Row(
-                            shell.project_folder_confirm_button,
-                            shell.project_folder_cancel_button,
-                        ),
-                        title="Choose Project Folder",
-                        sizing_mode="stretch_width",
-                    )
-                    if shell.project_folder_browser_visible
-                    else pn.Spacer(height=0)
-                ),
-                sizing_mode="stretch_width",
-            )
-        )
         return [
             pn.Card(
-                shell.project_name_input,
-                shell.project_folder_mode,
-                folder_widget,
-                pn.Row(shell.create_project_confirm_button),
-                _maybe_inline_or_toast(
-                    shell,
-                    key="start_project:message",
-                    pane=shell.start_project_message,
+                pn.pane.Markdown(
+                    "Click the button below to open the existing project or create it with the "
+                    "machine-specific sibling-folder layout.",
+                    sizing_mode="stretch_width",
                 ),
+                shell.start_project_message,
+                pn.Row(shell.create_project_confirm_button),
                 title="Start New Project",
                 sizing_mode="stretch_width",
             ),
