@@ -22,6 +22,7 @@ from toscana_gui.persistence import (
 from toscana_gui.projects.tasks import (
     WorkspaceTab,
     bootstrap_project,
+    derive_project_name,
     normalize_workspace_tab,
     persist_app_state,
     remember_project,
@@ -328,7 +329,7 @@ class ProjectSessionControllerMixin:
             self.start_project_message.alert_type = "danger"
             return
 
-        project_name = project_root.name or "project"
+        project_name = derive_project_name(project_root)
         self.start_project_message.object = (
             "This branch will automatically open or create the configured project root.\n\n"
             f"**Project root:** `{project_root}`\n\n"

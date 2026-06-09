@@ -7,27 +7,20 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_ROOT.parent
 
 
-def _normalize_machine_project_root(candidate: Path) -> Path:
-    resolved = candidate.expanduser()
-    if resolved.name.lower() == "processed":
-        return resolved.parent
-    return resolved
-
-
 def _infer_machine_project_root_from_cwd() -> Path | None:
     current = Path.cwd().expanduser()
     if current.name.lower() == "processed":
-        return current.parent
+        return current
     for parent in current.parents:
         if parent.name.lower() == "processed":
-            return parent.parent
+            return parent
     return None
 
 
 def machine_project_root() -> Path:
     configured = os.environ.get("TOSCANA_MACHINE_PROJECT_ROOT", "").strip()
     if configured:
-        return _normalize_machine_project_root(Path(configured))
+        return Path(configured).expanduser()
     inferred = _infer_machine_project_root_from_cwd()
     if inferred is not None:
         return inferred

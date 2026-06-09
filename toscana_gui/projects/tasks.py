@@ -128,6 +128,12 @@ def remember_project(app_state, project_state: ProjectState, project_file: Path)
     )
 
 
+def derive_project_name(project_root: Path) -> str:
+    if project_root.name.lower() == "processed":
+        return project_root.parent.name.strip() or "project"
+    return project_root.name.strip() or "project"
+
+
 def ensure_project_bootstrap_dirs(project_root: Path, *, layout_version: int) -> None:
     for dirname in PROJECT_BOOTSTRAP_DIRS:
         project_data_path(project_root, dirname, layout_version=layout_version).mkdir(
@@ -162,7 +168,7 @@ def bootstrap_project(
     if project_file.exists():
         return load_project_state(project_file), project_file.resolve(), False
 
-    project_name = project_root.name.strip() or "project"
+    project_name = derive_project_name(project_root)
     project_state, resolved_project_file = create_new_project(
         project_name,
         project_root,
