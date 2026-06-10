@@ -64,12 +64,14 @@ def bind_shell_callbacks(shell) -> None:
     shell.ft_real_space_next_block_button.on_click(shell._on_ft_real_space_next_block)
     shell.ft_real_space_prev_plot_button.on_click(shell._on_ft_real_space_prev_plot)
     shell.ft_real_space_next_plot_button.on_click(shell._on_ft_real_space_next_plot)
-    if hasattr(shell, "ft_real_space_export_button"):
-        shell.ft_real_space_export_button.on_click(shell._prompt_ft_real_space_export)
-    if hasattr(shell, "ft_real_space_export_confirm_button"):
-        shell.ft_real_space_export_confirm_button.on_click(shell._confirm_ft_real_space_export)
-    if hasattr(shell, "ft_real_space_export_cancel_button"):
-        shell.ft_real_space_export_cancel_button.on_click(shell._cancel_ft_real_space_export)
+    if hasattr(shell, "ft_export_folder_input"):
+        shell.ft_export_folder_input.param.watch(shell._on_ft_export_folder_change, "value")
+    if hasattr(shell, "ft_export_button"):
+        shell.ft_export_button.on_click(shell._prompt_ft_export)
+    if hasattr(shell, "ft_export_confirm_button"):
+        shell.ft_export_confirm_button.on_click(shell._confirm_ft_export)
+    if hasattr(shell, "ft_export_cancel_button"):
+        shell.ft_export_cancel_button.on_click(shell._cancel_ft_export)
 
     # Back Fourier Transform (BFT)
     shell.bft_run_button.on_click(shell._on_bft_run_clicked)

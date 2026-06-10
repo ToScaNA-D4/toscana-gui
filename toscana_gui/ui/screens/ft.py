@@ -24,6 +24,10 @@ def build_ft_section(shell) -> pn.Column:
         shell._refresh_ft_base_gr_panel()
     if hasattr(shell, "_refresh_ft_effective_atomic_density_panel"):
         shell._refresh_ft_effective_atomic_density_panel()
+    if hasattr(shell, "_refresh_ft_export_hovercard"):
+        shell._refresh_ft_export_hovercard()
+    if hasattr(shell, "_refresh_ft_export_button_states"):
+        shell._refresh_ft_export_button_states()
 
     resolved_context_notice = _maybe_toast_only(
         shell,
@@ -387,7 +391,7 @@ def build_ft_section(shell) -> pn.Column:
                     styles={"align-items": "center", "justify-content": "center"},
                 ),
                 pn.Row(
-                    getattr(shell, "ft_real_space_export_button", pn.Spacer(height=0)),
+                    pn.Spacer(width=0),
                     sizing_mode="fixed",
                     width=320,
                     height=48,
@@ -446,7 +450,7 @@ def build_ft_section(shell) -> pn.Column:
                     },
                 ),
                 pn.Column(
-                    getattr(shell, "ft_real_space_export_prompt_card", pn.Spacer(height=0)),
+                    pn.Spacer(height=44),
                     sizing_mode="fixed",
                     width=320,
                     styles={"gap": "12px"},
@@ -509,6 +513,8 @@ def build_ft_section(shell) -> pn.Column:
         rho_card,
         pn.Spacer(height=18),
         real_space_card,
+        pn.Spacer(height=16),
+        getattr(shell, "ft_export_card", pn.Spacer(height=0)),
         sizing_mode="stretch_width",
     )
 
@@ -538,4 +544,3 @@ def _maybe_toast_only(shell, *, key: str, pane: object) -> object:
     except Exception:
         pass
     return pane if alert_type == "danger" else pn.Spacer(height=0)
-

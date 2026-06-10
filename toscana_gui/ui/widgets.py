@@ -3342,48 +3342,80 @@ def initialize_shell_widgets(shell) -> None:
         height=600,
     )
 
-    shell.ft_real_space_export_button = pn.widgets.Button(
+    shell.ft_export_folder_input = pn.widgets.TextInput(
+        name="Export folder",
+        value="ft/",
+        placeholder="ft/",
+        sizing_mode="stretch_width",
+    )
+    shell.ft_export_button = pn.widgets.Button(
         name="Export Data",
-        button_type="success",
+        button_type="primary",
         sizing_mode="fixed",
-        width=130,
-        height=40,
+        width=180,
+        height=48,
         disabled=True,
     )
-    shell.ft_real_space_export_prompt = pn.pane.Alert(
+    shell.ft_export_info_hover = pn.widgets.TooltipIcon(
+        value="",
+        sizing_mode="fixed",
+        width=36,
+        height=36,
+        margin=(0, 0, 0, 0),
+    )
+    shell.ft_export_prompt = pn.pane.Alert(
         "",
         alert_type="warning",
         sizing_mode="stretch_width",
         visible=False,
     )
-    shell.ft_real_space_export_confirm_button = pn.widgets.Button(
+    shell.ft_export_confirm_button = pn.widgets.Button(
         name="Export",
         button_type="success",
+        sizing_mode="fixed",
         width=120,
         height=40,
         disabled=False,
     )
-    shell.ft_real_space_export_cancel_button = pn.widgets.Button(
+    shell.ft_export_cancel_button = pn.widgets.Button(
         name="Cancel",
         button_type="light",
+        sizing_mode="fixed",
         width=120,
         height=40,
         disabled=False,
     )
-    shell.ft_real_space_export_prompt_card = pn.Card(
-        shell.ft_real_space_export_prompt,
+    shell.ft_export_prompt_card = pn.Card(
+        shell.ft_export_prompt,
         pn.Row(
-            shell.ft_real_space_export_confirm_button,
-            shell.ft_real_space_export_cancel_button,
+            shell.ft_export_confirm_button,
+            shell.ft_export_cancel_button,
             sizing_mode="stretch_width",
             styles={"justify-content": "flex-end", "gap": "10px"},
             margin=(8, 0, 0, 0),
         ),
         pn.Spacer(height=6),
-        title="Export Real Space Functions",
+        title="Confirm Export",
         sizing_mode="stretch_width",
         visible=False,
         css_classes=["toscana-export-prompt-card"],
+    )
+    shell.ft_export_card = pn.Card(
+        pn.Column(
+            shell.ft_export_folder_input,
+            pn.Row(
+                shell.ft_export_button,
+                shell.ft_export_info_hover,
+                sizing_mode="stretch_width",
+            ),
+            sizing_mode="stretch_width",
+        ),
+        shell.ft_export_prompt_card,
+        title="Export Data",
+        sizing_mode="stretch_width",
+        css_classes=["toscana-overflow-visible"],
+        styles={"overflow": "visible", "margin-bottom": "180px"},
+        visible=True,
     )
 
     shell.ft_real_space_prev_block_button = pn.widgets.Button(

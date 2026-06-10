@@ -116,6 +116,172 @@ class FTControllerMixin:
     def _ft_real_space_series_label(series: str) -> str:
         return "Lorch" if str(series) == "lorch" else "No Lorch"
 
+    def _resolve_ft_export_dir(self) -> Path | None:
+        if self.current_project_root is None:
+            return None
+        raw = str(getattr(getattr(self, "ft_export_folder_input", None), "value", "") or "").strip()
+        if not raw:
+            raw = "ft/"
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = (self.current_project_root / candidate).resolve(strict=False)
+        return candidate
+
+    def _ft_export_snapshot(self) -> dict[str, object]:
+        snapshot: dict[str, object] = {
+            "ready": False,
+            "context_id": None,
+            "sample_title": None,
+            "export_root": None,
+            "user_target_dir": None,
+            "canonical_target_dir": None,
+            "filename_no": None,
+            "filename_l": None,
+            "reason": None,
+        }
+
+        if self.current_project_root is None or self.current_project_state is None:
+            snapshot["reason"] = "Open a project first."
+            return snapshot
+
+        state = getattr(self, "_ft_rho_state", None)
+        if not isinstance(state, dict):
+            snapshot["reason"] = "Real-space functions are not available yet."
+            return snapshot
+
+        context_id = str(state.get("context_id") or "").strip()
+        if not context_id:
+            snapshot["reason"] = "Select a context first."
+            return snapshot
+        snapshot["context_id"] = context_id
+
+        selection = state.get("rho_selection") if isinstance(state.get("rho_selection"), dict) else {}
+        if not bool(selection.get("confirmed", False)):
+            snapshot["reason"] = "Confirm Effective Atomic Density first."
+            return snapshot
+
+        real_space = state.get("real_space") if isinstance(state.get("real_space"), dict) else {}
+        series_data = real_space.get("series_data") if isinstance(real_space.get("series_data"), dict) else {}
+        no_block = series_data.get("no_lorch") if isinstance(series_data.get("no_lorch"), dict) else None
+        l_block = series_data.get("lorch") if isinstance(series_data.get("lorch"), dict) else None
+        if not (isinstance(no_block, dict) and isinstance(l_block, dict)):
+            snapshot["reason"] = "Real-space functions not computed yet."
+            return snapshot
+
+        def _valid_block(block: dict[str, object]) -> bool:
+            rr = block.get("r")
+            ok = isinstance(rr, np.ndarray) and rr.size > 0
+            for key in ("pcf", "pdf", "rdf", "tor", "run"):
+                arr = block.get(key)
+                ok = ok and isinstance(arr, np.ndarray) and isinstance(rr, np.ndarray) and arr.shape == rr.shape
+            return bool(ok)
+
+        if not (_valid_block(no_block) and _valid_block(l_block)):
+            snapshot["reason"] = "Computed real-space arrays are incomplete."
+            return snapshot
+
+        export_root = self._resolve_ft_export_dir()
+        snapshot["export_root"] = str(export_root) if export_root is not None else None
+        if export_root is None:
+            snapshot["reason"] = "Choose an export folder."
+            return snapshot
+
+        manifest_ref = self._selected_ft_manifest_ref()
+        payload = load_context_manifest(self.current_project_root, manifest_ref) if manifest_ref else None
+        payload = payload if isinstance(payload, dict) else None
+        sample = payload.get("sample") if isinstance(payload, dict) else {}
+        sample_title = str(sample.get("title") or "").strip() if isinstance(sample, dict) else ""
+        snapshot["sample_title"] = sample_title
+
+        stem = self._sanitize_export_filename_stem(sample_title or context_id)
+        filename_no = f"{stem}_RSF_NoLorch.dat"
+        filename_l = f"{stem}_RSF_Lorch.dat"
+        snapshot["filename_no"] = filename_no
+        snapshot["filename_l"] = filename_l
+
+        snapshot["user_target_dir"] = str(export_root / context_id)
+        snapshot["canonical_target_dir"] = str(self._project_data_path("ft", context_id))
+        snapshot["ready"] = True
+        snapshot["reason"] = None
+        return snapshot
+
+    def _refresh_ft_export_hovercard(self) -> None:
+        if not hasattr(self, "ft_export_info_hover"):
+            return
+
+        snap = self._ft_export_snapshot()
+        ready = bool(snap.get("ready", False))
+        status = "Ready" if ready else "Not ready"
+        reason = _html_escape(str(snap.get("reason") or ""))
+
+        body_lines = [f"<div><strong>Status:</strong> {_html_escape(status)}</div>"]
+        if ready:
+            context_id = _html_escape(str(snap.get("context_id") or ""))
+            export_root = _html_escape(str(snap.get("export_root") or ""))
+            user_target_dir = _html_escape(str(snap.get("user_target_dir") or ""))
+            canonical_target_dir = _html_escape(str(snap.get("canonical_target_dir") or ""))
+            filename_no = _html_escape(str(snap.get("filename_no") or ""))
+            filename_l = _html_escape(str(snap.get("filename_l") or ""))
+            if context_id:
+                body_lines.append(f"<div><strong>Context:</strong> {context_id}</div>")
+            if export_root:
+                body_lines.append(f"<div><strong>Export root:</strong> {export_root}</div>")
+            if user_target_dir:
+                body_lines.append(f"<div><strong>User export:</strong> {user_target_dir}</div>")
+            if canonical_target_dir and canonical_target_dir != user_target_dir:
+                body_lines.append(f"<div><strong>Canonical export:</strong> {canonical_target_dir}</div>")
+            if filename_no or filename_l:
+                body_lines.append(
+                    "<div><strong>Files:</strong> "
+                    f"{filename_no or ''}"
+                    + (f", {filename_l}" if filename_l else "")
+                    + "</div>"
+                )
+        elif reason:
+            body_lines.append(f"<div style=\"margin-top: 8px;\"><em>{reason}</em></div>")
+
+        self.ft_export_info_hover.value = (
+            "<div style=\"max-width: 320px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; word-break: break-word;\">"
+            + "\n".join(body_lines)
+            + "</div>"
+        )
+
+    def _refresh_ft_export_button_states(self) -> None:
+        if not hasattr(self, "ft_export_button"):
+            return
+        can_export = bool(self._ft_export_snapshot().get("ready", False))
+        disabled = bool(getattr(self, "operation_in_progress", False))
+        self.ft_export_button.disabled = disabled or not can_export
+        if hasattr(self, "ft_export_confirm_button"):
+            self.ft_export_confirm_button.disabled = disabled
+        if hasattr(self, "ft_export_cancel_button"):
+            self.ft_export_cancel_button.disabled = disabled
+
+    def _sync_ft_export_prompt_visibility(self) -> None:
+        if not hasattr(self, "ft_export_prompt_card"):
+            return
+        prompt = getattr(self, "ft_export_prompt", None)
+        visible = bool(getattr(prompt, "visible", False)) if prompt is not None else False
+        try:
+            self.ft_export_prompt_card.visible = visible
+        except Exception:
+            pass
+
+    def _on_ft_export_folder_change(self, event) -> None:
+        if getattr(self, "_suspend_ft_events", False) or self.current_project_state is None:
+            return
+        if event.new == event.old:
+            return
+        self._pending_ft_export = None
+        if hasattr(self, "ft_export_prompt"):
+            self.ft_export_prompt.visible = False
+            self.ft_export_prompt.object = ""
+        self._sync_ft_export_prompt_visibility()
+        self._refresh_ft_export_hovercard()
+        self._refresh_ft_export_button_states()
+        if hasattr(self, "_refresh_interaction_states"):
+            self._refresh_interaction_states()
+
     def _ft_real_space_set_disabled_ui(self, *, reason: str) -> None:
         if hasattr(self, "ft_real_space_plot_view_label"):
             try:
@@ -134,22 +300,20 @@ class FTControllerMixin:
                     btn.disabled = True
                 except Exception:
                     pass
-        export_btn = getattr(self, "ft_real_space_export_button", None)
-        if export_btn is not None:
+        if hasattr(self, "ft_export_prompt"):
             try:
-                export_btn.disabled = True
+                self.ft_export_prompt.visible = False
             except Exception:
                 pass
-        if hasattr(self, "ft_real_space_export_prompt"):
+        if hasattr(self, "_sync_ft_export_prompt_visibility"):
             try:
-                self.ft_real_space_export_prompt.visible = False
+                self._sync_ft_export_prompt_visibility()
             except Exception:
                 pass
-        if hasattr(self, "_sync_ft_real_space_export_prompt_visibility"):
-            try:
-                self._sync_ft_real_space_export_prompt_visibility()
-            except Exception:
-                pass
+        if hasattr(self, "_refresh_ft_export_button_states"):
+            self._refresh_ft_export_button_states()
+        if hasattr(self, "_refresh_ft_export_hovercard"):
+            self._refresh_ft_export_hovercard()
         if hasattr(self, "ft_real_space_plot_pane"):
             try:
                 self.ft_real_space_plot_pane.object = None
@@ -246,32 +410,6 @@ class FTControllerMixin:
                 pass
 
         can_interact = not bool(getattr(self, "operation_in_progress", False))
-        export_button = getattr(self, "ft_real_space_export_button", None)
-        if export_button is not None:
-            can_export = False
-            try:
-                selection = state.get("rho_selection") if isinstance(state.get("rho_selection"), dict) else {}
-                confirmed = bool(selection.get("confirmed", False))
-                real_space = state.get("real_space") if isinstance(state.get("real_space"), dict) else {}
-                series_data = real_space.get("series_data") if isinstance(real_space.get("series_data"), dict) else {}
-                no_block = series_data.get("no_lorch") if isinstance(series_data.get("no_lorch"), dict) else None
-                lorch_block = series_data.get("lorch") if isinstance(series_data.get("lorch"), dict) else None
-                if confirmed and isinstance(no_block, dict) and isinstance(lorch_block, dict):
-                    for block in (no_block, lorch_block):
-                        rr = block.get("r")
-                        ok = isinstance(rr, np.ndarray) and rr.size > 0
-                        for key in ("pcf", "pdf", "rdf", "tor", "run"):
-                            arr = block.get(key)
-                            ok = ok and isinstance(arr, np.ndarray) and isinstance(rr, np.ndarray) and arr.shape == rr.shape
-                        can_export = bool(ok)
-                        if not can_export:
-                            break
-            except Exception:
-                can_export = False
-            try:
-                export_button.disabled = (not can_export) or (not can_interact)
-            except Exception:
-                pass
 
         prev_block = getattr(self, "ft_real_space_prev_block_button", None)
         next_block = getattr(self, "ft_real_space_next_block_button", None)
@@ -298,135 +436,117 @@ class FTControllerMixin:
             except Exception:
                 pass
 
-        confirm = getattr(self, "ft_real_space_export_confirm_button", None)
-        cancel = getattr(self, "ft_real_space_export_cancel_button", None)
-        if confirm is not None:
-            try:
-                confirm.disabled = bool(getattr(self, "operation_in_progress", False))
-            except Exception:
-                pass
-        if cancel is not None:
-            try:
-                cancel.disabled = bool(getattr(self, "operation_in_progress", False))
-            except Exception:
-                pass
+        self._refresh_ft_export_button_states()
 
-    def _sync_ft_real_space_export_prompt_visibility(self) -> None:
-        if not hasattr(self, "ft_real_space_export_prompt_card"):
+    def _prompt_ft_export(self, _event=None) -> None:
+        if getattr(self, "operation_in_progress", False):
+            self._show_workspace_blocked_message()
             return
-        prompt = getattr(self, "ft_real_space_export_prompt", None)
-        visible = bool(getattr(prompt, "visible", False)) if prompt is not None else False
-        try:
-            self.ft_real_space_export_prompt_card.visible = visible
-        except Exception:
-            pass
-
-    def _prompt_ft_real_space_export(self, _event=None) -> None:
         if self.current_project_root is None or self.current_project_state is None:
+            self._show_warning_toast("Open a project first.")
             return
-        prompt = getattr(self, "ft_real_space_export_prompt", None)
-        if prompt is None:
-            return
-        if bool(getattr(prompt, "visible", False)):
-            prompt.visible = False
-            self._sync_ft_real_space_export_prompt_visibility()
+        prompt = getattr(self, "ft_export_prompt", None)
+        if prompt is not None and bool(getattr(prompt, "visible", False)):
+            self._cancel_ft_export()
             return
 
-        state = getattr(self, "_ft_rho_state", None)
-        if not isinstance(state, dict):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Real-space functions not ready. Confirm Effective Atomic Density first.")
-            return
-        selection = state.get("rho_selection") if isinstance(state.get("rho_selection"), dict) else {}
-        if not bool(selection.get("confirmed", False)):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Confirm Effective Atomic Density first to export.")
+        snap = self._ft_export_snapshot()
+        if not snap.get("ready", False):
+            self._show_warning_toast(str(snap.get("reason") or "Export is not ready yet."))
             return
 
-        context_id = str(state.get("context_id") or "").strip()
-        if not context_id:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Select a context first.")
-            return
+        user_target_dir = Path(str(snap["user_target_dir"]))
+        canonical_target_dir = Path(str(snap["canonical_target_dir"]))
+        filename_no = str(snap.get("filename_no") or "RSF_NoLorch.dat")
+        filename_l = str(snap.get("filename_l") or "RSF_Lorch.dat")
+        overwrite_targets: list[str] = []
+        for path in (
+            user_target_dir / filename_no,
+            user_target_dir / filename_l,
+            canonical_target_dir / filename_no,
+            canonical_target_dir / filename_l,
+        ):
+            if path.exists():
+                overwrite_targets.append(str(path))
 
-        manifest_ref = self._selected_ft_manifest_ref()
-        payload = load_context_manifest(self.current_project_root, manifest_ref) if manifest_ref else None
-        payload = payload if isinstance(payload, dict) else None
-        sample = payload.get("sample") if isinstance(payload, dict) else {}
-        sample_title = str(sample.get("title") or "").strip() if isinstance(sample, dict) else ""
-        stem = self._sanitize_export_filename_stem(sample_title or context_id)
-
-        filename_no = f"{stem}_RSF_NoLorch.dat"
-        filename_l = f"{stem}_RSF_Lorch.dat"
-        target_dir = self._project_data_path("ft", context_id)
-        target_no = target_dir / filename_no
-        target_l = target_dir / filename_l
-
-        rel_no = project_relpath(self.current_project_root, target_no)
-        rel_l = project_relpath(self.current_project_root, target_l)
+        self._pending_ft_export = {
+            "user_target_dir": user_target_dir,
+            "canonical_target_dir": canonical_target_dir,
+            "filename_no": filename_no,
+            "filename_l": filename_l,
+            "overwrite_targets": overwrite_targets,
+        }
 
         lines = [
-            "Proceeding will write (or overwrite) Real Space Function exports:",
+            f"Export folder: `{snap['export_root']}`",
             "",
-            f"No Lorch: `{rel_no}` \n",
-            f"Lorch: `{rel_l}`",
+            f"User export: `{project_relpath(self.current_project_root, user_target_dir)}`",
+            f"Canonical export: `{project_relpath(self.current_project_root, canonical_target_dir)}`",
+            "",
+            f"Will write: `{filename_no}`",
+            f"Will write: `{filename_l}`",
         ]
-        overwrite = target_no.exists() or target_l.exists()
-        prompt.alert_type = "warning" if overwrite else "secondary"
-        if overwrite:
-            lines.append("")
-            lines.append("Warning: one or more files already exist and will be overwritten.")
-        prompt.object = "\n".join(lines)
-        prompt.visible = True
-        self._sync_ft_real_space_export_prompt_visibility()
+        if overwrite_targets:
+            lines.extend(["", "**Overwrite warning:**", *[f"- `{p}`" for p in overwrite_targets]])
 
-    def _cancel_ft_real_space_export(self, _event=None) -> None:
-        if hasattr(self, "ft_real_space_export_prompt"):
-            try:
-                self.ft_real_space_export_prompt.visible = False
-            except Exception:
-                pass
-        self._sync_ft_real_space_export_prompt_visibility()
+        if prompt is not None:
+            prompt.object = "\n".join(lines)
+            prompt.alert_type = "warning" if overwrite_targets else "secondary"
+            prompt.visible = True
+        self._sync_ft_export_prompt_visibility()
+        if hasattr(self, "_refresh_interaction_states"):
+            self._refresh_interaction_states()
 
-    def _confirm_ft_real_space_export(self, _event=None) -> None:
-        self._perform_ft_real_space_export()
+    def _cancel_ft_export(self, _event=None) -> None:
+        self._pending_ft_export = None
+        if hasattr(self, "ft_export_prompt"):
+            self.ft_export_prompt.visible = False
+            self.ft_export_prompt.object = ""
+        self._sync_ft_export_prompt_visibility()
+        if hasattr(self, "_refresh_interaction_states"):
+            self._refresh_interaction_states()
 
-    def _perform_ft_real_space_export(self) -> None:
+    def _confirm_ft_export(self, _event=None) -> None:
+        if getattr(self, "operation_in_progress", False):
+            self._show_workspace_blocked_message()
+            return
+        if getattr(self, "_pending_ft_export", None) is None:
+            return
+        self._perform_ft_export()
+
+    def _perform_ft_export(self) -> None:
         if self.current_project_root is None or self.current_project_state is None:
             return
         if getattr(self, "operation_in_progress", False):
             return
 
-        state = getattr(self, "_ft_rho_state", None)
-        if not isinstance(state, dict):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Real-space functions not ready.")
+        snap = self._ft_export_snapshot()
+        if not snap.get("ready", False):
+            self._show_warning_toast(str(snap.get("reason") or "Export is not ready yet."))
             return
 
-        context_id = str(state.get("context_id") or "").strip()
+        state = getattr(self, "_ft_rho_state", None)
+        if not isinstance(state, dict):
+            self._show_warning_toast("Real-space functions not ready.")
+            return
+
+        context_id = str(snap.get("context_id") or "").strip()
         if not context_id:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Select a context first.")
+            self._show_warning_toast("Select a context first.")
             return
 
         selection = state.get("rho_selection") if isinstance(state.get("rho_selection"), dict) else {}
-        if not bool(selection.get("confirmed", False)):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Confirm Effective Atomic Density first.")
-            return
-
         real_space = state.get("real_space") if isinstance(state.get("real_space"), dict) else {}
         series_data = real_space.get("series_data") if isinstance(real_space.get("series_data"), dict) else {}
         no_block = series_data.get("no_lorch") if isinstance(series_data.get("no_lorch"), dict) else None
         l_block = series_data.get("lorch") if isinstance(series_data.get("lorch"), dict) else None
         if not (isinstance(no_block, dict) and isinstance(l_block, dict)):
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("No real-space data available to export.")
+            self._show_warning_toast("No real-space data available to export.")
             return
 
         def _rho_from(series_key: str) -> float | None:
-            snap = selection.get("confirmed_snapshot") if isinstance(selection.get("confirmed_snapshot"), dict) else None
-            block = snap.get(series_key) if isinstance(snap, dict) and isinstance(snap.get(series_key), dict) else {}
+            snap_selection = selection.get("confirmed_snapshot") if isinstance(selection.get("confirmed_snapshot"), dict) else None
+            block = snap_selection.get(series_key) if isinstance(snap_selection, dict) and isinstance(snap_selection.get(series_key), dict) else {}
             value = block.get("chosen_rho")
             try:
                 rho_val = float(value)
@@ -437,8 +557,7 @@ class FTControllerMixin:
         rho_no = _rho_from("no_lorch")
         rho_l = _rho_from("lorch")
         if rho_no is None or rho_l is None:
-            if hasattr(self, "_show_warning_toast"):
-                self._show_warning_toast("Effective Atomic Density missing; cannot export.")
+            self._show_warning_toast("Effective Atomic Density missing; cannot export.")
             return
 
         manifest_ref = self._selected_ft_manifest_ref()
@@ -468,9 +587,16 @@ class FTControllerMixin:
                 except Exception:
                     soq_rel = soq_ref
 
-        stem = self._sanitize_export_filename_stem(sample_title or context_id)
-        filename_no = f"{stem}_RSF_NoLorch.dat"
-        filename_l = f"{stem}_RSF_Lorch.dat"
+        filename_no = str(snap.get("filename_no") or "RSF_NoLorch.dat")
+        filename_l = str(snap.get("filename_l") or "RSF_Lorch.dat")
+        pending = getattr(self, "_pending_ft_export", None)
+        user_target_dir = Path(str(snap["user_target_dir"]))
+        canonical_target_dir = Path(str(snap["canonical_target_dir"]))
+        if isinstance(pending, dict):
+            user_target_dir = Path(str(pending.get("user_target_dir") or user_target_dir))
+            canonical_target_dir = Path(str(pending.get("canonical_target_dir") or canonical_target_dir))
+            filename_no = str(pending.get("filename_no") or filename_no)
+            filename_l = str(pending.get("filename_l") or filename_l)
 
         # Record in run history (best-effort).
         run_record = None
@@ -500,10 +626,12 @@ class FTControllerMixin:
             if hasattr(self, "_refresh_interaction_states"):
                 self._refresh_interaction_states()
 
-            target_dir = self._project_data_path("ft", context_id)
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target_no = target_dir / filename_no
-            target_l = target_dir / filename_l
+            user_target_dir.mkdir(parents=True, exist_ok=True)
+            canonical_target_dir.mkdir(parents=True, exist_ok=True)
+            user_target_no = user_target_dir / filename_no
+            user_target_l = user_target_dir / filename_l
+            canonical_target_no = canonical_target_dir / filename_no
+            canonical_target_l = canonical_target_dir / filename_l
 
             def _arrays(block: dict[str, object]) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
                 rr = np.asarray(block.get("r"), dtype=float)
@@ -564,34 +692,36 @@ class FTControllerMixin:
                             )
                         )
 
-            _write_dat(
-                target_no,
-                series_label="No Lorch",
-                rho=float(rho_no),
-                r=rr_no,
-                pcf=pcf_no,
-                pdf=pdf_no,
-                rdf=rdf_no,
-                tor=tor_no,
-                run=run_no,
-            )
-            _write_dat(
-                target_l,
-                series_label="Lorch",
-                rho=float(rho_l),
-                r=rr_l,
-                pcf=pcf_l,
-                pdf=pdf_l,
-                rdf=rdf_l,
-                tor=tor_l,
-                run=run_l,
-            )
+            for path in (user_target_no, canonical_target_no):
+                _write_dat(
+                    path,
+                    series_label="No Lorch",
+                    rho=float(rho_no),
+                    r=rr_no,
+                    pcf=pcf_no,
+                    pdf=pdf_no,
+                    rdf=rdf_no,
+                    tor=tor_no,
+                    run=run_no,
+                )
+            for path in (user_target_l, canonical_target_l):
+                _write_dat(
+                    path,
+                    series_label="Lorch",
+                    rho=float(rho_l),
+                    r=rr_l,
+                    pcf=pcf_l,
+                    pdf=pdf_l,
+                    rdf=rdf_l,
+                    tor=tor_l,
+                    run=run_l,
+                )
 
             # Persist artifact references.
             if isinstance(payload, dict):
                 artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
-                artifacts["ft_real_space_no_lorch_dat"] = project_relpath(self.current_project_root, target_no)
-                artifacts["ft_real_space_lorch_dat"] = project_relpath(self.current_project_root, target_l)
+                artifacts["ft_real_space_no_lorch_dat"] = project_relpath(self.current_project_root, canonical_target_no)
+                artifacts["ft_real_space_lorch_dat"] = project_relpath(self.current_project_root, canonical_target_l)
                 payload["artifacts"] = artifacts
                 try:
                     write_context_manifest(self.current_project_root, context_id=context_id, payload=payload)
@@ -606,8 +736,10 @@ class FTControllerMixin:
                     run_record.finished_at = now_iso()
                     run_record.summary = f"Exported `{filename_no}` / `{filename_l}`"
                     run_record.output_paths.generated_files = [
-                        project_relpath(self.current_project_root, target_no),
-                        project_relpath(self.current_project_root, target_l),
+                        project_relpath(self.current_project_root, user_target_no),
+                        project_relpath(self.current_project_root, user_target_l),
+                        project_relpath(self.current_project_root, canonical_target_no),
+                        project_relpath(self.current_project_root, canonical_target_l),
                     ]
                     if hasattr(self.current_project_state, "project") and hasattr(self.current_project_state.project, "updated_at"):
                         self.current_project_state.project.updated_at = now_iso()  # type: ignore[assignment]
@@ -618,12 +750,11 @@ class FTControllerMixin:
 
             if hasattr(self, "_show_success_toast"):
                 self._show_success_toast("Exported Real Space Function files.")
-            if hasattr(self, "ft_real_space_export_prompt"):
-                try:
-                    self.ft_real_space_export_prompt.visible = False
-                except Exception:
-                    pass
-                self._sync_ft_real_space_export_prompt_visibility()
+            self._pending_ft_export = None
+            if hasattr(self, "ft_export_prompt"):
+                self.ft_export_prompt.visible = False
+                self.ft_export_prompt.object = ""
+            self._sync_ft_export_prompt_visibility()
         except Exception as exc:
             if hasattr(self, "_show_error_toast"):
                 self._show_error_toast(f"Export failed: {exc}")
@@ -639,12 +770,15 @@ class FTControllerMixin:
                 except Exception:
                     pass
         finally:
+            self._pending_ft_export = None
             self.operation_in_progress = False
             if hasattr(self, "_refresh_interaction_states"):
                 try:
                     self._refresh_interaction_states()
                 except Exception:
                     pass
+            self._refresh_ft_export_hovercard()
+            self._refresh_ft_export_button_states()
             try:
                 self._refresh_ft_real_space_view()
             except Exception:
@@ -2263,6 +2397,8 @@ class FTControllerMixin:
         self._ft_rho_refresh_confirm_selection_ui(state)
         self._compute_ft_real_space_functions_from_confirmed_selection(state)
         self._refresh_ft_real_space_view(state)
+        self._refresh_ft_export_hovercard()
+        self._refresh_ft_export_button_states()
 
     def _on_ft_rho_cancel_selection(self, _event=None) -> None:
         state = getattr(self, "_ft_rho_state", None)
@@ -2287,6 +2423,9 @@ class FTControllerMixin:
         selection["panel_open"] = False
         state["rho_selection"] = selection
         self._ft_rho_refresh_confirm_selection_ui(state)
+        self._refresh_ft_export_hovercard()
+        self._refresh_ft_export_button_states()
+
     def _on_ft_rho_run_fit(self, _event=None) -> None:
         state = getattr(self, "_ft_rho_state", None)
         base = getattr(self, "_ft_base_gr_current", None)

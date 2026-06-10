@@ -402,7 +402,7 @@ class BFTControllerMixin:
     @staticmethod
     def _bft_parse_ft_real_space_dat(path: Path) -> tuple[np.ndarray, np.ndarray, float] | None:
         """
-        Parse FT real-space export .dat written by FTControllerMixin._perform_ft_real_space_export.
+        Parse FT real-space export .dat written by FTControllerMixin._perform_ft_export.
         Returns (r, pdf, rho).
         """
         try:

@@ -342,8 +342,22 @@ def refresh_interaction_states(shell) -> None:
         shell._sync_self_export_prompt_visibility()
     if hasattr(shell, "_sync_background_export_prompt_visibility"):
         shell._sync_background_export_prompt_visibility()
-    if hasattr(shell, "_sync_ft_real_space_export_prompt_visibility"):
-        shell._sync_ft_real_space_export_prompt_visibility()
+    is_ft_tab = getattr(shell, "current_top_level_tab", None) == "ft"
+    if hasattr(shell, "ft_export_folder_input"):
+        shell.ft_export_folder_input.disabled = disabled
+    if hasattr(shell, "ft_export_button"):
+        export_ready = bool(shell._ft_export_snapshot().get("ready", False)) if is_ft_tab and hasattr(shell, "_ft_export_snapshot") else False
+        shell.ft_export_button.disabled = disabled or not export_ready
+    if hasattr(shell, "ft_export_confirm_button"):
+        shell.ft_export_confirm_button.disabled = disabled
+    if hasattr(shell, "ft_export_cancel_button"):
+        shell.ft_export_cancel_button.disabled = disabled
+    if hasattr(shell, "_refresh_ft_export_hovercard"):
+        shell._refresh_ft_export_hovercard()
+    if hasattr(shell, "_refresh_ft_export_button_states"):
+        shell._refresh_ft_export_button_states()
+    if hasattr(shell, "_sync_ft_export_prompt_visibility"):
+        shell._sync_ft_export_prompt_visibility()
 
     # Back Fourier Transform (BFT) global disable rules (operation_in_progress blocks switching/workflow).
     # Note: When not disabled, BFT controller code owns enabling/disabling based on context readiness.
