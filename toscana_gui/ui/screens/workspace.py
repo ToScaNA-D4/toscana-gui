@@ -11,7 +11,7 @@ from toscana_gui.ui.screens.normalization import prepare_normalization_section
 from toscana_gui.ui.screens.normalization import build_normalization_section
 from toscana_gui.ui.screens.self_scattering import build_self_scattering_section
 from toscana_gui.ui.screens.ft import build_ft_section
-from toscana_gui.ui.screens.bft import build_bft_section
+from toscana_gui.ui.screens.bft import build_bft_section, prepare_bft_section
 from toscana_gui.ui.screens.project import build_project_section
 from toscana_gui.ui.screens.run_history import build_run_history_section
 
@@ -240,6 +240,8 @@ def prepare_workspace_section_content(shell, tab_name: str) -> None:
         prepare_background_section(shell)
     if tab_name == "normalization":
         prepare_normalization_section(shell)
+    if tab_name == "bft":
+        prepare_bft_section(shell)
 
 def build_workspace_section_content(shell, tab_name: str) -> object:
     if tab_name == "project":

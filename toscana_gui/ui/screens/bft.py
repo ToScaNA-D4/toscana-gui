@@ -3,6 +3,30 @@ from __future__ import annotations
 import panel as pn
 
 
+def prepare_bft_section(shell) -> None:
+
+    if shell.current_project_state is None:
+        return
+    
+    selected = str(getattr(getattr(shell, "bft_context_select", None), "value", "") or "").strip()
+    if hasattr(shell, "_refresh_bft_context_options"):
+        shell._refresh_bft_context_options(apply_selection=not bool(selected))
+
+    available_values = {
+        str(value).strip()
+        for value in getattr(getattr(shell, "bft_context_select", None), "options", {}).values()
+        if str(value).strip()
+    }
+    current_value = str(getattr(getattr(shell, "bft_context_select", None), "value", "") or "").strip()
+    if not current_value or current_value not in available_values:
+        if hasattr(shell, "_refresh_bft_context_options"):
+            shell._refresh_bft_context_options(apply_selection=True)
+
+    if hasattr(shell, "_refresh_bft_context_summary"):
+        shell._refresh_bft_context_summary()
+    if hasattr(shell, "_refresh_bft_results_panel"):
+        shell._refresh_bft_results_panel()
+
 def build_bft_section(shell) -> pn.Column:
     if shell.current_project_state is None:
         return pn.Column(
@@ -13,13 +37,7 @@ def build_bft_section(shell) -> pn.Column:
             sizing_mode="stretch_width",
         )
 
-    # NOTE: Avoid mutating widget values during render; refresh only the dropdown options/summary.
-    if hasattr(shell, "_refresh_bft_context_options"):
-        shell._refresh_bft_context_options(apply_selection=False)
-    if hasattr(shell, "_refresh_bft_context_summary"):
-        shell._refresh_bft_context_summary()
-    if hasattr(shell, "_refresh_bft_results_panel"):
-        shell._refresh_bft_results_panel()
+    prepare_bft_section(shell)
 
     resolved_context_notice = _maybe_toast_only(
         shell,
